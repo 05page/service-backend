@@ -18,7 +18,7 @@ return new class extends Migration
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
 
-            $table->enum('role', ['admin', 'employe', 'client'])->default('client');
+            $table->enum('role', ['admin'])->default('admin');
             $table->boolean('active')->default(true);
             // Champs spécifiques aux clients
             // $table->unsignedBigInteger('intermediaire_id')->nullable();

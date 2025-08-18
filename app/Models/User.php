@@ -79,18 +79,18 @@ class User extends Authenticatable implements MustVerifyEmail
     /**
      * Vérifier si l'utilisateur est employé
      */
-    public function isEmploye()
-    {
-        return $this->role === self::ROLE_EMPLOYE;
-    }
+    // public function isEmploye()
+    // {
+    //     return $this->role === self::ROLE_EMPLOYE;
+    // }
 
     /**
      * Vérifier si l'utilisateur est client
      */
-    public function isClient()
-    {
-        return $this->role === self::ROLE_CLIENT;
-    }
+    // public function isClient()
+    // {
+    //     return $this->role === self::ROLE_CLIENT;
+    // }
 
     /**
      * Vérifier si l'utilisateur est actif

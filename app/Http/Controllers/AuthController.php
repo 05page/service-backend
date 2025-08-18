@@ -20,16 +20,17 @@ class AuthController extends Controller
             $validator = $request->validate([
                 'fullname' => 'required|string|max:300',
                 'email' => 'required|email|unique:users,email',
-                'role' => ['sometimes', Rule::in([User::ROLE_ADMIN, User::ROLE_CLIENT, User::ROLE_EMPLOYE])],
+                'role' => ['sometimes', Rule::in([User::ROLE_ADMIN])],
                 'telephone' => 'required|string|max:10',
                 'adresse' => 'required|string|max:255',
                 'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()]
             ]);
+            
             DB::beginTransaction();
             $user = User::create([
                 'fullname' => $validator['fullname'],
                 'email' => $validator['email'],
-                'role' => $validator['role'] ?? User::ROLE_CLIENT,
+                'role' => $validator['role'] ?? User::ROLE_ADMIN,
                 'telephone' => $validator['telephone'],
                 'adresse' => $validator['adresse'],
                 'password' => $validator['password'],
@@ -95,6 +96,7 @@ class AuthController extends Controller
                 ], 403);
             }
 
+            /** @var User $user */
             $user->recordLogin();
             $token = $user->createToken('auth_token')->plainTextToken;
             return response()->json([
@@ -196,4 +198,7 @@ class AuthController extends Controller
             ], 500);
         }
     }
+
+    
+    
 }
