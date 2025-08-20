@@ -152,7 +152,7 @@ public function activateAccount(Request $request): JsonResponse
     /**
      * Lister tous les employés/intermédiaires (ADMIN SEULEMENT)
      */
-    public function index(): JsonResponse
+    public function showEmploye(): JsonResponse
     {
         try {
             if (Auth::user()->role !== User::ROLE_ADMIN) {
@@ -162,8 +162,16 @@ public function activateAccount(Request $request): JsonResponse
                 ], 403);
             }
 
-            $employesIntermediaires = EmployeIntermediaire::with('createdBy')
-                ->orderBy('created_at', 'desc')
+            $employesIntermediaires = EmployeIntermediaire::select(
+                'type',
+                'nom_complet',
+                'email',
+                'telephone',
+                'adresse',
+                'active',
+                'created_by',
+                'created_at'
+            )
                 ->get();
 
             return response()->json([
@@ -200,7 +208,7 @@ public function activateAccount(Request $request): JsonResponse
         }
     }
 
-    public function updateUser(Request $request, $id): JsonResponse {
+    public function updateEmploye(Request $request, $id): JsonResponse {
         try{
             if(Auth::user()->role !== User::ROLE_ADMIN){
                 return response()->json([
@@ -245,7 +253,7 @@ public function activateAccount(Request $request): JsonResponse
         }
     }
 
-    public function deleteUser($id): JsonResponse{
+    public function deleteEmploye($id): JsonResponse{
         try{
             if(Auth::user()->role !== User::ROLE_ADMIN){
                 return response()->json([
@@ -272,7 +280,40 @@ public function activateAccount(Request $request): JsonResponse
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la mise à jour du profil',
+                'message' => 'Erreur lors de la suppression de cet employé',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    
+    public function deleteALLEmployes(): JsonResponse{
+        try{
+            if(Auth::user()->role !== User::ROLE_ADMIN){
+                return response()->json([
+                    'success'=> false,
+                    'message'=>"Accès refusé. Seul un admin peut supprimer."
+                ], 403);
+            }
+
+            $employe = EmployeIntermediaire::truncate();
+
+            return response()->json([
+                'success'=>true,
+                "message"=>"Tous les employés ont été supprimés avec succès."
+            ]);
+        }catch(\Illuminate\Validation\ValidationException $e){
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $e->errors()
+            ], 422);
+
+        }catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression des employés',
                 'error' => $e->getMessage()
             ], 500);
         }

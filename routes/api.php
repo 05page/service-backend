@@ -21,6 +21,10 @@ Route::post('/password/change', [PasswordController::class, 'changePassword']);
 
 Route::prefix('admin/employe_intermediaire')->group(function(){
 Route::post('/createUser', [EmployeIntermediaireController::class, 'createUser']);
+Route::get('/showEmploye', [EmployeIntermediaireController::class, 'showEmploye']);
+Route::put('/updateEmploye', [EmployeIntermediaireController::class, 'updateEmploye']);
+Route::post('/deleteEmployes', [EmployeIntermediaireController::class, 'deleteAllEmployes']);
+Route::post('/deleteEmploye/{id}', [EmployeIntermediaireController::class, 'deleteEmploye']);
 });
 });
 Route::post('activate-account', [EmployeIntermediaireController::class, 'activateAccount']);    
