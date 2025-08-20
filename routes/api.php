@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\EmployeIntermediaireController;
 use App\Http\Controllers\PasswordController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Http\Request;
@@ -17,7 +18,12 @@ Route::get('/profil', [ProfileController::class, 'userInfo']);
 Route::post('/logout', [AuthController::class, 'logout']); 
 Route::put('/update', [ProfileController::class, 'updateProfile']);
 Route::post('/password/change', [PasswordController::class, 'changePassword']);
-});    
+
+Route::prefix('admin/employe_intermediaire')->group(function(){
+Route::post('/createUser', [EmployeIntermediaireController::class, 'createUser']);
+});
+});
+Route::post('activate-account', [EmployeIntermediaireController::class, 'activateAccount']);    
 
 Route::post('/password/forgot', [PasswordController::class, 'forgotPassword']);
 Route::post('/password/check-token', [PasswordController::class, 'checkResetToken']);

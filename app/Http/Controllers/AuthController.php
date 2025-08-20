@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -25,7 +26,7 @@ class AuthController extends Controller
                 'adresse' => 'required|string|max:255',
                 'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()]
             ]);
-            
+
             DB::beginTransaction();
             $user = User::create([
                 'fullname' => $validator['fullname'],
@@ -104,17 +105,17 @@ class AuthController extends Controller
                 'data' => [
                     'user' => $user,
                     'token' => $token,
-                    'email_verified' => !is_null($user->email_verified_at), 
+                    'email_verified' => !is_null($user->email_verified_at),
                 ],
                 'message' => 'Connexion réussie'
             ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) { // Gérer les erreurs de validation
-           return response()->json([
-                'success'=> false,
+            return response()->json([
+                'success' => false,
                 'message' => 'Erreur de validation',
                 'errors' => $e->errors()
-           ], 422);
-        }catch (\Exception $e) {
+            ], 422);
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la connexion',
@@ -181,15 +182,16 @@ class AuthController extends Controller
     }
 
     // Déconnexion de l'utilisateur
-    public function logout(Request $request): JsonResponse{
-        try{
+    public function logout(Request $request): JsonResponse
+    {
+        try {
             $request->user()->currentAccessToken()->delete(); // Supprimer le token de l'utilisateur
             return response()->json([
                 'response_code' => 200,
                 'status' => 'success',
                 'message' => 'Déconnexion réussie'
             ]);
-        }catch (\Exception $e) {
+        } catch (\Exception $e) {
             return response()->json([
                 'response_code' => 500,
                 'status' => 'error',
@@ -198,7 +200,4 @@ class AuthController extends Controller
             ], 500);
         }
     }
-
-    
-    
 }
