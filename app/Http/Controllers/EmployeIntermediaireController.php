@@ -4,8 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Mail\ActivationCodeMail;
-use App\Models\EmployeIntermediaire;
-use App\Models\Permission;
+// use App\Models\EmployeIntermediaire;
 use Illuminate\Support\Facades\Log;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\Rules\Password;
 
 
 class EmployeIntermediaireController extends Controller
@@ -33,25 +33,25 @@ class EmployeIntermediaireController extends Controller
             }
 
             $validateUser = $request->validate([
-                'type' => ['required', Rule::in([EmployeIntermediaire::TYPE_EMPLOYE, EmployeIntermediaire::TYPE_INTERMEDIAIRE])],
-                'nom_complet' => 'required|string|max:300',
-                'email' => 'required|email|unique:employes_intermediaires,email',
+                'fullname' => 'required|string|max:300',
+                'email' => 'required|email|unique:users,email',
                 'telephone' => 'required|string|max:10',
                 'adresse' => 'required|string|max:300',
-                'taux_commission' => 'nullable|numeric|min:0|max:100', // Corrigé: commission avec 2 m
+                'role' => ['required', Rule::in([User::ROLE_EMPLOYE, User::ROLE_INTERMEDIAIRE])],
+                // 'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()]
+                
             ]);
 
             DB::beginTransaction();
 
             // Créer l'employé/intermédiaire
-            $employeIntermediaire = EmployeIntermediaire::create([
-                'type' => $validateUser['type'],
-                'nom_complet' => $validateUser['nom_complet'],
+            $employeIntermediaire = User::create([
+                'fullname' => $validateUser['fullname'],
                 'email' => $validateUser['email'],
                 'telephone' => $validateUser['telephone'],
                 'adresse' => $validateUser['adresse'],
-                'permissions' => [], // Vide au départ
-                'taux_commission' => $validateUser['taux_commission'] ?? null, // Corrigé
+                'role' => $validateUser['role'],
+                'password' => $validateUser['password'] ?? null,
                 'created_by' => Auth::id(),
             ]);
 
@@ -98,11 +98,11 @@ public function activateAccount(Request $request): JsonResponse
     try {
         $validated = $request->validate([
             'email' => 'required|email',
-            'code_activation' => 'required|string',
+            'activation_code' => 'required|string',
         ]);
 
-        $employeIntermediaire = EmployeIntermediaire::where('email', $validated['email'])
-            ->where('code_activation', $validated['code_activation'])
+        $employeIntermediaire = User::where('email', $validated['email'])
+            ->where('activation_code', $validated['activation_code'])
             ->first();
 
         if (!$employeIntermediaire) {
@@ -112,7 +112,7 @@ public function activateAccount(Request $request): JsonResponse
             ], 400);
         }
 
-        if ($employeIntermediaire->isActivated()) {
+        if ($employeIntermediaire->activate_at !== null) {
             return response()->json([
                 'success' => false,
                 'message' => 'Ce compte est déjà activé.'
@@ -120,7 +120,7 @@ public function activateAccount(Request $request): JsonResponse
         }
 
         // Activer le compte (met à jour activated_at et supprime le code)
-        $employeIntermediaire->activate();
+        $employeIntermediaire->activate_code();
 
         // Recharger les données depuis la base pour avoir les infos à jour
         $employeIntermediaire->refresh();
@@ -162,9 +162,9 @@ public function activateAccount(Request $request): JsonResponse
                 ], 403);
             }
 
-            $employesIntermediaires = EmployeIntermediaire::select(
-                'type',
-                'nom_complet',
+            $employesIntermediaires = User::select(
+                
+                'fullname',
                 'email',
                 'telephone',
                 'adresse',
@@ -191,22 +191,18 @@ public function activateAccount(Request $request): JsonResponse
     /**
      * Envoyer l'email d'activation (MÉTHODE MANQUANTE AJOUTÉE)
      */
-    private function sendActivationEmail(EmployeIntermediaire $employeIntermediaire)
-    {
-        try {
-            Mail::to($employeIntermediaire->email)->send(new ActivationCodeMail($employeIntermediaire));
-            
-            // Log pour confirmation
-            Log::info("Email d'activation envoyé avec succès à {$employeIntermediaire->email}");
-            
-        } catch (\Exception $e) {
-            // Log l'erreur mais ne fait pas échouer la création du compte
-            Log::error("Erreur lors de l'envoi de l'email d'activation à {$employeIntermediaire->email}: " . $e->getMessage());
-            
-            // Relancer l'exception pour que la transaction soit annulée
-            throw $e;
-        }
+    private function sendActivationEmail(User $user)
+{
+    try {
+        Mail::to($user->email)->send(new ActivationCodeMail($user));
+
+        Log::info("Email d'activation envoyé avec succès à {$user->email}");
+    } catch (\Exception $e) {
+        Log::error("Erreur lors de l'envoi de l'email d'activation à {$user->email}: " . $e->getMessage());
+        throw $e;
     }
+}
+
 
     public function updateEmploye(Request $request, $id): JsonResponse {
         try{
@@ -226,7 +222,7 @@ public function activateAccount(Request $request): JsonResponse
 
             DB::beginTransaction();
 
-            $employe = EmployeIntermediaire::findOrFail($id);
+            $employe = User::findOrFail($id);
 
             $employe->update($employeUpdate);
 
@@ -262,7 +258,7 @@ public function activateAccount(Request $request): JsonResponse
                 ], 403);
             }
 
-            $employe = EmployeIntermediaire::findOrFail($id);
+            $employe = User::findOrFail($id);
             $employe->delete();
 
             return response()->json([
@@ -296,7 +292,7 @@ public function activateAccount(Request $request): JsonResponse
                 ], 403);
             }
 
-            $employe = EmployeIntermediaire::truncate();
+            $employe = User::truncate();
 
             return response()->json([
                 'success'=>true,

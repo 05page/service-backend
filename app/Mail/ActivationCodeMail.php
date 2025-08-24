@@ -9,7 +9,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use App\Http\Controllers\EmployeIntermediaireController;
-use App\Models\EmployeIntermediaire;
+use App\Models\User;
 
 use function PHPSTORM_META\type;
 
@@ -17,14 +17,14 @@ class ActivationCodeMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public $employeIntermediaire;
+    public $user;
     /**
      * Create a new message instance.
      */
-    public function __construct(EmployeIntermediaire $employeIntermediaire)
+    public function __construct(User $user)
     {
         //
-        $this->employeIntermediaire = $employeIntermediaire;
+        $this->user = $user;
     }
 
 
@@ -47,9 +47,9 @@ class ActivationCodeMail extends Mailable
         return new Content(
             view: 'emails.activation-code',
             with:[
-                    'employeIntermediaire'=> $this->employeIntermediaire,
-                    'code'=> $this->employeIntermediaire->code_activation,
-                    'type'=> $this->employeIntermediaire->type
+                    'employeIntermediaire'=> $this->user,
+                    'code'=> $this->user->activation_code,
+                    'type'=> $this->user->type
                 ]
             );
 

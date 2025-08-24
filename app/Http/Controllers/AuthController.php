@@ -181,6 +181,56 @@ class AuthController extends Controller
         }
     }
 
+    public function setPassword(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'email' => 'required|email|exists:users,email',
+                'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
+            ]);
+
+            $user = User::where('email', $validated['email'])->first();
+
+            // Vérifier que le compte est activé mais sans mot de passe
+            if (!$user->activate_code()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Votre compte doit d\'abord être activé.'
+                ], 400);
+            }
+
+            if (!is_null($user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Un mot de passe existe déjà pour ce compte.'
+                ], 400);
+            }
+
+            // Définir le mot de passe
+            $user->update([
+                'password' => bcrypt($validated['password']),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Mot de passe défini avec succès ! Vous pouvez maintenant vous connecter.',
+            ], 200);
+        } catch (\Illuminate\Validation\ValidationException $e) { // Gérer les erreurs de validation
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la connexion',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
     // Déconnexion de l'utilisateur
     public function logout(Request $request): JsonResponse
     {

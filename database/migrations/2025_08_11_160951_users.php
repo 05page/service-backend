@@ -13,42 +13,25 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
+
+            // Informations générales
             $table->string('fullname');
             $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
+            $table->string('telephone');
+            $table->string('adresse');
+            $table->enum('role', ['admin', 'employe', 'intermediaire'])->default('admin');
 
-            $table->enum('role', ['admin'])->default('admin');
+            // Authentification
+            $table->string('password'); // optionnel si tu veux gérer un mot de passe aussi
+            $table->string('activation_code')->nullable(); // code temporaire envoyé par mail
+            $table->timestamp('activated_at')->nullable();
+
             $table->boolean('active')->default(true);
-            // Champs spécifiques aux clients
-            // $table->unsignedBigInteger('intermediaire_id')->nullable();
-            $table->string('telephone')->nullable();
-            $table->text('adresse')->nullable();
-            
-            // Sécurité et audit
-            $table->timestamp('last_login_at')->nullable();
-            // $table->string('last_login_ip')->nullable();
-            // $table->boolean('force_password_change')->default(false);
-            // $table->timestamp('password_changed_at')->nullable();
-            // Tokens
-            $table->rememberToken();
+            $table->timestamp('email_verified_at')->nullable();
+            // Traçabilité
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+
             $table->timestamps();
-            
-            // Index pour optimiser les performances
-            $table->index('role');
-            $table->index('active');
-            $table->index(['role', 'active']);
-            
-            // Clé étrangère
-        //     $table->foreign('intermediaire_id')
-        //           ->references('id')
-        //           ->on('intermediaires')
-        //           ->onDelete('set null');
-        });
-        Schema::create('password_reset_tokens', function (Blueprint $table) {
-            $table->string('email')->primary();
-            $table->string('token');
-            $table->timestamp('created_at')->nullable();
         });
 
         Schema::create('sessions', function (Blueprint $table) {
@@ -56,7 +39,7 @@ return new class extends Migration
             $table->foreignId('user_id')->nullable()->index();
             $table->string('ip_address', 45)->nullable();
             $table->text('user_agent')->nullable();
-            $table->longText('payload');
+            $table->text('payload');
             $table->integer('last_activity')->index();
         });
     }

@@ -232,19 +232,19 @@
     <div class="email-container">
         <div class="header">
             <h1>🚀 Bienvenue !</h1>
-            <p>Activation de votre compte {{ ucfirst($employeIntermediaire->type) }}</p>
+            <p>Activation de votre compte {{ ucfirst($user->type) }}</p>
         </div>
 
         <div class="content">
             <div class="greeting">
-                Bonjour <strong>{{ $employeIntermediaire->nom_complet }}</strong>,
+                Bonjour <strong>{{ $user->fullname }}</strong>,
             </div>
             
-            <p>Félicitations ! Votre compte {{ $employeIntermediaire->type }} a été créé avec succès. Pour commencer à utiliser notre plateforme, vous devez d'abord activer votre compte.</p>
+            <p>Félicitations ! Votre compte {{ $user->role }} a été créé avec succès. Pour commencer à utiliser notre plateforme, vous devez d'abord activer votre compte.</p>
 
             <div class="code-section">
                 <div class="code-label">Votre code d'activation</div>
-                <div class="activation-code">{{ $employeIntermediaire->code_activation }}</div>
+                <div class="activation-code">{{ $user->activation_code }}</div>
             </div>
 
             <div class="instructions">
