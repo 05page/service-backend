@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
@@ -81,6 +82,21 @@ class AuthController extends Controller
                 'email' => 'required|email',
                 'password' => 'required'
             ]);
+
+            $user = User::where('email', $validateLogin['email'])->first();
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Utilisateur introuvable avec cet email',
+                ], 404);
+            }
+            if (!Hash::check($validateLogin['password'], $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mot de passe incorrect',
+                ], 401);
+            }
+
 
             if (!Auth::attempt($validateLogin)) {
                 return response()->json([
@@ -206,11 +222,12 @@ class AuthController extends Controller
                 ], 400);
             }
 
-            // Définir le mot de passe
+            // Définir le mot de passe et marquer l'email comme vérifié
             $user->update([
-                'password' => bcrypt($validated['password']),
+                'password' => $validated['password'],
             ]);
-
+            $user->email_verified_at = now();
+            $user->save();
             return response()->json([
                 'success' => true,
                 'message' => 'Mot de passe défini avec succès ! Vous pouvez maintenant vous connecter.',
@@ -229,7 +246,6 @@ class AuthController extends Controller
             ], 500);
         }
     }
-
 
     // Déconnexion de l'utilisateur
     public function logout(Request $request): JsonResponse
