@@ -6,6 +6,7 @@ use App\Http\Controllers\FournisseurController;
 use App\Http\Controllers\PasswordController;
 use App\Http\Controllers\PermissionsController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ServicesController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -43,6 +44,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('{id}', [FournisseurController::class, 'update']);       // Modifier (edit_suppliers)
         Route::delete('{id}', [FournisseurController::class, 'destroy']);   // Supprimer (delete_suppliers)
     });
+
+    Route::prefix('services')->group(function () {
+        Route::post('/', [ServicesController::class, 'addServices']);
+        Route::get('/', [ServicesController::class, 'showServices']); 
+        Route::get('{id}', [ServicesController::class, 'show']);         // Voir détail (view_suppliers)
+        Route::put('{id}', [ServicesController::class, 'updateService']);       // Modifier (edit_suppliers)
+        Route::delete('{id}', [ServicesController::class, 'delete']);   // Supprimer (delete_suppliers)
+        Route::delete('/', [ServicesController::class, 'deleteAll']);   // Supprimer (delete_suppliers)
+    });
+
 });
 Route::post('activate-account', [EmployeIntermediaireController::class, 'activateAccount']);
 

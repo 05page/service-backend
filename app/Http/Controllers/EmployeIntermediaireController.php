@@ -163,7 +163,6 @@ public function activateAccount(Request $request): JsonResponse
             }
 
             $employesIntermediaires = User::select(
-                
                 'fullname',
                 'email',
                 'telephone',
@@ -171,7 +170,7 @@ public function activateAccount(Request $request): JsonResponse
                 'active',
                 'created_by',
                 'created_at'
-            )
+            )->where('role', User::ROLE_EMPLOYE)
                 ->get();
 
             return response()->json([
@@ -265,15 +264,7 @@ public function activateAccount(Request $request): JsonResponse
                 'success'=>true,
                 "message"=>"Employe supprimer avec succès."
             ]);
-        }catch(\Illuminate\Validation\ValidationException $e){
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur de validation',
-                'errors' => $e->errors()
-            ], 422);
-
         }catch (\Exception $e) {
-            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la suppression de cet employé',
@@ -298,13 +289,6 @@ public function activateAccount(Request $request): JsonResponse
                 'success'=>true,
                 "message"=>"Tous les employés ont été supprimés avec succès."
             ]);
-        }catch(\Illuminate\Validation\ValidationException $e){
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur de validation',
-                'errors' => $e->errors()
-            ], 422);
-
         }catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
