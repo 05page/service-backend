@@ -4,25 +4,23 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Permissions;
-use App\Models\Services;
+use App\Models\Stock;
 use App\Models\User;
-use Illuminate\Contracts\Session\Session;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
-class ServicesController extends Controller
+class StockController extends Controller
 {
     //
-    public function addServices(Request $request): JsonResponse
+    public function addStock(Request $request): JsonResponse
     {
         try {
             $user = Auth::user();
             if ($user->role !== User::ROLE_ADMIN) {
                 /** @var User $user */
-                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_SERVICES)->where('active', true)->exists();
+                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_STOCK)->where('active', true)->exists();
                 if (!$hasPermission) {
                     return response()->json([
                         'success' => false,
@@ -32,50 +30,46 @@ class ServicesController extends Controller
             }
 
             $validate = $request->validate([
+                'service_id' => 'required|string',
                 'fournisseur_id' => 'required|string',
-                'nom_service' => 'required|string|max:300',
-                'description' => 'sometimes|string|max:500',
-                'prix_service' => 'required|string|max:500',
-                'statut' => ['sometimes', Rule::in([Services::SERVICE_DISPONIBLE])],
-
+                'quantite' => 'required|string',
+                'nom_produit' => 'required|string|max:300',
             ]);
 
             DB::beginTransaction();
-            $service = Services::create([
+            $stock = Stock::create([
+                'service_id' => $validate['service_id'],
                 'fournisseur_id' => $validate['fournisseur_id'],
-                'nom_service' => $validate['nom_service'],
-                'description' => $validate['description'],
-                'prix_service' => $validate['prix_service'],
-                'statut' => $validate['statut'] ?? Services::SERVICE_DISPONIBLE,
-                'active' => true,
-                'created_by' => Auth::id(),
+                'quantite' => $validate['quantite'],
+                'nom_produit' => $validate['nom_produit'],
+                'actif' => true,
+                'created_by' => Auth::id()
             ]);
 
             DB::commit();
             return response()->json([
                 'success' => true,
+                'message' => "Le stock a été ajouté avec succès",
                 'data' => [
-                    $service
-                ],
-                'message' => 'Service ajouter avec succès',
+                    $stock
+                ]
             ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur de validation',
+                'message' => "Erreur de validation",
                 'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
-            DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur survenue lors de création du service',
-                'errors' => $e->getMessage()
-            ], 500);
+                'message' => 'Erreur lors de la création du stock',
+                'error' => $e->getMessage()
+            ], 500); // ✅ Code 500 pour erreur serveur
         }
     }
 
-    public function showServices(): JsonResponse
+    public function showStocks(): JsonResponse
     {
         try {
             $user = Auth::user();
@@ -90,20 +84,18 @@ class ServicesController extends Controller
                 }
             }
 
-            $services = Services::with(['addBy:id,fullname,email,role'])->select(
+            $stocks = Stock::with(['creePar:id,fullname,email,role'])->select(
+                'service_id',
                 'fournisseur_id',
-                'nom_service',
-                'description',
-                'prix_service',
-                'statut',
-                'active',
+                'quantite',
+                'actif',
                 'created_by',
                 'created_at'
             )->get();
 
             return response()->json([
                 'success' => true,
-                'data' => $services,
+                'data' => $stocks,
                 'message' => 'selection réussie'
             ], 201);
         } catch (\Exception $e) {
@@ -115,7 +107,7 @@ class ServicesController extends Controller
         }
     }
 
-    public function show($id): JsonResponse
+        public function show($id): JsonResponse
     {
         try {
             $user = Auth::user();
@@ -130,32 +122,30 @@ class ServicesController extends Controller
                 }
             }
 
-            $service = Services::with(['addBy:id,fullname,email,role'])->select(
+            $stock = Stock::with(['creePar:id,fullname,email,role'])->select(
+                'service_id',
                 'fournisseur_id',
-                'nom_service',
-                'description',
-                'prix_service',
-                'statut',
-                'active',
+                'quantite',
+                'actif',
                 'created_by',
                 'created_at'
             )->findOrFail($id);
 
             return response()->json([
                 'success' => true,
-                'data' => $service,
+                'data' => $stock,
                 'message' => 'selection réussie'
             ], 201);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des données',
+                'message' => 'Erreur survenue lors de la récupération des données',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
-    public function updateService(Request $request, $id): JsonResponse
+    public function updateStock(Request $request, $id): JsonResponse
     {
         try {
             $user = Auth::user();
@@ -169,17 +159,16 @@ class ServicesController extends Controller
                     ], 403);
                 }
             }
-            $updateService = $request->validate([
-                'fournissuer_id' => 'sometimes|required|string',
-                'nom_service' => 'sometimes|required|string',
-                'description' => 'sometimes|string|max:500',
-                'prix_service' => 'sometimes|required|string|max:500',
-                'statut' => ['sometimes', Rule::in([Services::SERVICE_DISPONIBLE])],
+            $updateStock = $request->validate([
+                'service_id' => 'sometimes|required|string',
+                'fournisseur_id' => 'sometimes|required|string',
+                'quantite' => 'sometimes|required|string',
+                'nom_produit' => 'sometimes|required|string|max:300'
             ]);
 
             DB::beginTransaction();
-            $service = Services::findOrFail($id);
-            $service->update($updateService);
+            $service = Stock::findOrFail($id);
+            $service->update($updateStock);
             DB::commit();
             return response()->json([
                 'success' => true,
@@ -217,8 +206,8 @@ class ServicesController extends Controller
                 }
             }
 
-            $service = Services::findOrFail($id);
-            $service->delete();
+            $stock = Stock::findOrFail($id);
+            $stock->delete();
             return response()->json([
                 'success' => true,
                 "message" => "Service supprimer avec succès."
@@ -247,7 +236,7 @@ class ServicesController extends Controller
                 }
             }
 
-            $service = Services::truncate();
+            $stock = Stock::query()->delete();
             return response()->json([
                 'success' => true,
                 "message" => "Services supprimer avec succès."

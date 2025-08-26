@@ -7,6 +7,7 @@ use App\Http\Controllers\PasswordController;
 use App\Http\Controllers\PermissionsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ServicesController;
+use App\Http\Controllers\StockController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -47,13 +48,21 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('services')->group(function () {
         Route::post('/', [ServicesController::class, 'addServices']);
-        Route::get('/', [ServicesController::class, 'showServices']); 
+        Route::get('/', [ServicesController::class, 'showServices']);
         Route::get('{id}', [ServicesController::class, 'show']);         // Voir détail (view_suppliers)
         Route::put('{id}', [ServicesController::class, 'updateService']);       // Modifier (edit_suppliers)
         Route::delete('{id}', [ServicesController::class, 'delete']);   // Supprimer (delete_suppliers)
         Route::delete('/', [ServicesController::class, 'deleteAll']);   // Supprimer (delete_suppliers)
     });
 
+    Route::prefix('stock')->group(function () {
+        Route::post('/', [StockController::class, 'addStock']);
+        Route::get('/', [StockController::class, 'showStocks']);
+        Route::get('{id}', [StockController::class, 'show']);         // Voir détail (view_suppliers)
+        Route::put('{id}', [StockController::class, 'updateStock']);       // Modifier (edit_suppliers)
+        Route::delete('{id}', [StockController::class, 'delete']);   // Supprimer (delete_suppliers)
+        Route::delete('/', [StockController::class, 'deleteAll']);   // Supprimer (delete_suppliers)
+    });
 });
 Route::post('activate-account', [EmployeIntermediaireController::class, 'activateAccount']);
 
