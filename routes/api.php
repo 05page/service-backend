@@ -28,9 +28,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('admin')->group(function () {
         Route::post('/createUser', [EmployeIntermediaireController::class, 'createUser']);
         Route::get('/showEmploye', [EmployeIntermediaireController::class, 'showEmploye']);
+        Route::get('/show/{id}', [EmployeIntermediaireController::class, 'show']);
         Route::put('/updateEmploye', [EmployeIntermediaireController::class, 'updateEmploye']);
         Route::post('/deleteEmployes', [EmployeIntermediaireController::class, 'deleteAllEmployes']);
         Route::post('/deleteEmploye/{id}', [EmployeIntermediaireController::class, 'deleteEmploye']);
+        Route::post('/activateEmploye/{id}', [EmployeIntermediaireController::class, 'activateUser']);
+        Route::post('/desactivateEmploye/{id}', [EmployeIntermediaireController::class, 'desActivateUser']);
 
         Route::post('/createPermission', [PermissionsController::class, 'createPermission']);
         Route::get('/showPermissions', [PermissionsController::class, 'showPermission']);

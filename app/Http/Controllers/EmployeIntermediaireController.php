@@ -39,7 +39,7 @@ class EmployeIntermediaireController extends Controller
                 'adresse' => 'required|string|max:300',
                 'role' => ['required', Rule::in([User::ROLE_EMPLOYE, User::ROLE_INTERMEDIAIRE])],
                 // 'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()]
-                
+
             ]);
 
             DB::beginTransaction();
@@ -57,7 +57,7 @@ class EmployeIntermediaireController extends Controller
 
             // Envoyer l'email avec le code d'activation
             $this->sendActivationEmail($employeIntermediaire);
-            
+
             DB::commit();
 
             return response()->json([
@@ -68,7 +68,6 @@ class EmployeIntermediaireController extends Controller
                 ],
                 'message' => 'Employé/Intermédiaire créé avec succès. Un email d\'activation a été envoyé.'
             ], 201);
-
         } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollBack();
             return response()->json([
@@ -76,7 +75,6 @@ class EmployeIntermediaireController extends Controller
                 'message' => 'Erreur de validation',
                 'errors' => $e->errors()
             ], 422);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -91,63 +89,61 @@ class EmployeIntermediaireController extends Controller
      * Activer un compte avec le code reçu par email
      */
     /**
- * Activer un compte employé/intermédiaire avec le code reçu par email
- */
-public function activateAccount(Request $request): JsonResponse
-{
-    try {
-        $validated = $request->validate([
-            'email' => 'required|email',
-            'activation_code' => 'required|string',
-        ]);
+     * Activer un compte employé/intermédiaire avec le code reçu par email
+     */
+    public function activateAccount(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'email' => 'required|email',
+                'activation_code' => 'required|string',
+            ]);
 
-        $employeIntermediaire = User::where('email', $validated['email'])
-            ->where('activation_code', $validated['activation_code'])
-            ->first();
+            $employeIntermediaire = User::where('email', $validated['email'])
+                ->where('activation_code', $validated['activation_code'])
+                ->first();
 
-        if (!$employeIntermediaire) {
+            if (!$employeIntermediaire) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Code d\'activation invalide ou email incorrect.'
+                ], 400);
+            }
+
+            if ($employeIntermediaire->activate_at !== null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce compte est déjà activé.'
+                ], 400);
+            }
+
+            // Activer le compte (met à jour activated_at et supprime le code)
+            $employeIntermediaire->activate_code();
+
+            // Recharger les données depuis la base pour avoir les infos à jour
+            $employeIntermediaire->refresh();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'employe_intermediaire' => $employeIntermediaire,
+                ],
+                'message' => 'Compte activé avec succès ! Vous pouvez maintenant vous connecter au dashboard.'
+            ], 200);
+        } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Code d\'activation invalide ou email incorrect.'
-            ], 400);
-        }
-
-        if ($employeIntermediaire->activate_at !== null) {
+                'message' => 'Erreur de validation',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Ce compte est déjà activé.'
-            ], 400);
+                'message' => 'Erreur lors de l\'activation',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        // Activer le compte (met à jour activated_at et supprime le code)
-        $employeIntermediaire->activate_code();
-
-        // Recharger les données depuis la base pour avoir les infos à jour
-        $employeIntermediaire->refresh();
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'employe_intermediaire' => $employeIntermediaire,
-            ],
-            'message' => 'Compte activé avec succès ! Vous pouvez maintenant vous connecter au dashboard.'
-        ], 200);
-
-    } catch (\Illuminate\Validation\ValidationException $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Erreur de validation',
-            'errors' => $e->errors()
-        ], 422);
-
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Erreur lors de l\'activation',
-            'error' => $e->getMessage()
-        ], 500);
     }
-}
 
     /**
      * Lister tous les employés/intermédiaires (ADMIN SEULEMENT)
@@ -177,7 +173,40 @@ public function activateAccount(Request $request): JsonResponse
                 'success' => true,
                 'data' => $employesIntermediaires
             ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des données',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 
+    public function show($id): JsonResponse
+    {
+        try {
+            if (Auth::user()->role !== User::ROLE_ADMIN) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès refusé.'
+                ], 403);
+            }
+
+            $employesIntermediaires = User::select(
+                'fullname',
+                'email',
+                'telephone',
+                'adresse',
+                'active',
+                'created_by',
+                'created_at'
+            )->where('role', User::ROLE_EMPLOYE)
+                ->findOrFail($id);
+
+            return response()->json([
+                'success' => true,
+                'data' => $employesIntermediaires
+            ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -191,32 +220,33 @@ public function activateAccount(Request $request): JsonResponse
      * Envoyer l'email d'activation (MÉTHODE MANQUANTE AJOUTÉE)
      */
     private function sendActivationEmail(User $user)
-{
-    try {
-        Mail::to($user->email)->send(new ActivationCodeMail($user));
+    {
+        try {
+            Mail::to($user->email)->send(new ActivationCodeMail($user));
 
-        Log::info("Email d'activation envoyé avec succès à {$user->email}");
-    } catch (\Exception $e) {
-        Log::error("Erreur lors de l'envoi de l'email d'activation à {$user->email}: " . $e->getMessage());
-        throw $e;
+            Log::info("Email d'activation envoyé avec succès à {$user->email}");
+        } catch (\Exception $e) {
+            Log::error("Erreur lors de l'envoi de l'email d'activation à {$user->email}: " . $e->getMessage());
+            throw $e;
+        }
     }
-}
 
 
-    public function updateEmploye(Request $request, $id): JsonResponse {
-        try{
-            if(Auth::user()->role !== User::ROLE_ADMIN){
+    public function updateEmploye(Request $request, $id): JsonResponse
+    {
+        try {
+            if (Auth::user()->role !== User::ROLE_ADMIN) {
                 return response()->json([
-                    'success'=> false,
-                    'message'=>"Accès refusé. Seul un admin peut supprimer."
+                    'success' => false,
+                    'message' => "Accès refusé. Seul un admin peut supprimer."
                 ], 403);
             }
             $employeUpdate = $request->validate([
-                'type'=> 'sometimes|required|string|max:300',
-                'nom_complet'=> 'sometimes|required|string|max:300',
-                'email'=> 'sometimes|required|email',
-                'telephone'=> 'sometimes|required|string|max:10',
-                'adresse'=> 'sometimes|required|string|max:300'
+                'type' => 'sometimes|required|string|max:300',
+                'nom_complet' => 'sometimes|required|string|max:300',
+                'email' => 'sometimes|required|email',
+                'telephone' => 'sometimes|required|string|max:10',
+                'adresse' => 'sometimes|required|string|max:300'
             ]);
 
             DB::beginTransaction();
@@ -227,18 +257,17 @@ public function activateAccount(Request $request): JsonResponse
 
             DB::commit();
             return response()->json([
-                'success'=>true,
-                'message'=> 'Compte mis à jour avec succès',
-                'data'=> $employe
+                'success' => true,
+                'message' => 'Compte mis à jour avec succès',
+                'data' => $employe
             ]);
-        }catch(\Illuminate\Validation\ValidationException $e){
+        } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur de validation',
                 'errors' => $e->errors()
             ], 422);
-
-        }catch (\Exception $e) {
+        } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
                 'success' => false,
@@ -248,12 +277,13 @@ public function activateAccount(Request $request): JsonResponse
         }
     }
 
-    public function deleteEmploye($id): JsonResponse{
-        try{
-            if(Auth::user()->role !== User::ROLE_ADMIN){
+    public function deleteEmploye($id): JsonResponse
+    {
+        try {
+            if (Auth::user()->role !== User::ROLE_ADMIN) {
                 return response()->json([
-                    'success'=> false,
-                    'message'=>"Accès refusé. Seul un admin peut supprimer."
+                    'success' => false,
+                    'message' => "Accès refusé. Seul un admin peut supprimer."
                 ], 403);
             }
 
@@ -261,10 +291,10 @@ public function activateAccount(Request $request): JsonResponse
             $employe->delete();
 
             return response()->json([
-                'success'=>true,
-                "message"=>"Employe supprimer avec succès."
+                'success' => true,
+                "message" => "Employe supprimer avec succès."
             ]);
-        }catch (\Exception $e) {
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la suppression de cet employé',
@@ -273,29 +303,95 @@ public function activateAccount(Request $request): JsonResponse
         }
     }
 
-    
-    public function deleteALLEmployes(): JsonResponse{
-        try{
-            if(Auth::user()->role !== User::ROLE_ADMIN){
+
+    public function deleteALLEmployes(): JsonResponse
+    {
+        try {
+            if (Auth::user()->role !== User::ROLE_ADMIN) {
                 return response()->json([
-                    'success'=> false,
-                    'message'=>"Accès refusé. Seul un admin peut supprimer."
+                    'success' => false,
+                    'message' => "Accès refusé. Seul un admin peut supprimer."
                 ], 403);
             }
 
             $employe = User::truncate();
 
             return response()->json([
-                'success'=>true,
-                "message"=>"Tous les employés ont été supprimés avec succès."
+                'success' => true,
+                "message" => "Tous les employés ont été supprimés avec succès."
             ]);
-        }catch (\Exception $e) {
+        } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la suppression des employés',
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    public function activateUser($id): JsonResponse
+    {
+        try {
+            if (Auth::user()->role !== User::ROLE_ADMIN) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Accès réfusé. Seul un admin peut accéder à cet espace"
+                ], 403);
+            }
+
+            $employe = User::findOrFail($id);
+            if ($employe->active === true) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Le compte de cet utilisateur est déja activé"
+                ], 400);
+            }
+            $employe->active = true;
+
+            $employe->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Le compte de cet employe activé avec succès"
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "Erreur lors de l'activation de ce compte"
+            ]);
+        }
+    }
+
+    public function desActivateUser($id): JsonResponse
+    {
+        try {
+            if (Auth::user()->role !== User::ROLE_ADMIN) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Accès réfusé. Seul un admin peut accéder à cet espace"
+                ], 403);
+            }
+
+            $employe = User::findOrFail($id);
+            if ($employe->active === false) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Le compte de cet utilisateur est déja désactivé"
+                ], 400);
+            }
+            $employe->active = false;
+            $employe->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Le compte de cet employé a été désactivé avec succès"
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "Erreur lors de la désactivation de ce compte"
+            ]);
         }
     }
 }
