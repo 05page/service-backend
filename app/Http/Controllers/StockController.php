@@ -30,18 +30,27 @@ class StockController extends Controller
             }
 
             $validate = $request->validate([
-                'service_id' => 'required|string',
-                'fournisseur_id' => 'required|string',
-                'quantite' => 'required|string',
                 'nom_produit' => 'required|string|max:300',
+                'categorie'=> 'sometimes|string|max:300',
+                'fournisseur_id' => 'required|exists:fournisseurs,id',
+                'quantite' => 'required|integer|min:1',
+                'quantite_min' => 'required|integer|min:1',
+                'prix_achat'=> 'required|numeric|min:0',
+                'prix_vente'=> 'required|numeric|min:0',
+                'description'=> 'sometimes|required|max:300',
             ]);
 
             DB::beginTransaction();
             $stock = Stock::create([
-                'service_id' => $validate['service_id'],
+                'nom_produit' => $validate['nom_produit'],
+                'code_produit' => Stock::generateCode(),
+                'categorie' => $validate['categorie'],
                 'fournisseur_id' => $validate['fournisseur_id'],
                 'quantite' => $validate['quantite'],
-                'nom_produit' => $validate['nom_produit'],
+                'quantite_min' => $validate['quantite_min'],
+                'prix_achat' => $validate['prix_achat'],
+                'prix_vente' => $validate['prix_vente'],
+                'decription' => $validate['description'] ?? null,
                 'actif' => true,
                 'created_by' => Auth::id()
             ]);

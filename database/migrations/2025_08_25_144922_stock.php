@@ -14,10 +14,17 @@ return new class extends Migration
         //
         Schema::create('stock', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('service_id')->constrained('services')->onDelete('cascade');
+            $table->text('nom_produit');
+            $table->string('code_produit')->unique();
+            $table->string('categorie')->nullable();
             $table->foreignId('fournisseur_id')->constrained('fournisseurs')->onDelete('cascade');
             $table->integer('quantitié')->default(0);
-            $table->text('nom_produit');
+            $table->integer('quantite_min')->default(0);
+            $table->integer('prix_achat');
+            $table->integer('prix_vente');
+            $table->string('description')->nullable();
+            $table->enum('statut', ['disponible', 'alerte', 'rupture']);
+
             $table->boolean('actif')->default(true);
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();

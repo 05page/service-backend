@@ -6,8 +6,9 @@ use App\Http\Controllers\FournisseurController;
 use App\Http\Controllers\PasswordController;
 use App\Http\Controllers\PermissionsController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\ServicesController;
+use App\Http\Controllers\StatsController;
 use App\Http\Controllers\StockController;
+use App\Http\Controllers\VentesController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -18,6 +19,11 @@ Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
     ->name('verification.verify');
 Route::post('/set-password', [AuthController::class, 'setPassword']);
 
+Route::post('activate-account', [EmployeIntermediaireController::class, 'activateAccount']);
+
+Route::post('/password/forgot', [PasswordController::class, 'forgotPassword']);
+Route::post('/password/check-token', [PasswordController::class, 'checkResetToken']);
+Route::post('/password/reset', [PasswordController::class, 'resetPassword']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profil', [ProfileController::class, 'userInfo']);
@@ -44,19 +50,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('fournisseurs')->group(function () {
         Route::get('/', [FournisseurController::class, 'showFournisseur']);           // Lister (view_suppliers)
         Route::post('/', [FournisseurController::class, 'createFournisseur']);          // Créer (add_suppliers)
-        Route::get('{id}', [FournisseurController::class, 'show']);         // Voir détail (view_suppliers)
+        Route::post('desactive/{id}', [FournisseurController::class, 'desactiverFournisseur']);   
+        Route::post('reactive/{id}', [FournisseurController::class, 'reactiverFournisseur']);   
+        Route::get('{id}', [FournisseurController::class, 'selectFournisseur']);         // Voir détail (view_suppliers)
         Route::put('{id}', [FournisseurController::class, 'update']);       // Modifier (edit_suppliers)
         Route::delete('{id}', [FournisseurController::class, 'destroy']);   // Supprimer (delete_suppliers)
     });
 
-    Route::prefix('services')->group(function () {
-        Route::post('/', [ServicesController::class, 'addServices']);
-        Route::get('/', [ServicesController::class, 'showServices']);
-        Route::get('{id}', [ServicesController::class, 'show']);         // Voir détail (view_suppliers)
-        Route::put('{id}', [ServicesController::class, 'updateService']);       // Modifier (edit_suppliers)
-        Route::delete('{id}', [ServicesController::class, 'delete']);   // Supprimer (delete_suppliers)
-        Route::delete('/', [ServicesController::class, 'deleteAll']);   // Supprimer (delete_suppliers)
-    });
 
     Route::prefix('stock')->group(function () {
         Route::post('/', [StockController::class, 'addStock']);
@@ -66,9 +66,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('{id}', [StockController::class, 'delete']);   // Supprimer (delete_suppliers)
         Route::delete('/', [StockController::class, 'deleteAll']);   // Supprimer (delete_suppliers)
     });
-});
-Route::post('activate-account', [EmployeIntermediaireController::class, 'activateAccount']);
 
-Route::post('/password/forgot', [PasswordController::class, 'forgotPassword']);
-Route::post('/password/check-token', [PasswordController::class, 'checkResetToken']);
-Route::post('/password/reset', [PasswordController::class, 'resetPassword']);
+    Route::prefix('ventes')->group(function () {
+        Route::post('/', [VentesController::class, 'createVente']);
+        Route::get('/', [VentesController::class, 'showVentes']);         // Voir détail (view_suppliers)
+        Route::get('/myStats/{userdId}', [StatsController::class, 'myStats']);
+        Route::get('/allStats', [StatsController::class, 'allStats']);
+        Route::get('{id}', [VentesController::class, 'selectVente']);
+        Route::put('{id}', [VentesController::class, 'update']);       // Modifier (edit_suppliers)
+        Route::post('/validePaye/{id}', [VentesController::class, 'marquePayer']);       // Modifier (edit_suppliers)
+        Route::post('/annuler/{id}', [VentesController::class, 'marqueAnnuler']);       // Modifier (edit_suppliers)
+        Route::delete('{id}', [VentesController::class, 'deleteVente']);   // Supprimer (delete_suppliers)
+        Route::delete('/', [VentesController::class, 'deleteAll']);   // Supprimer (delete_suppliers)
+    });
+});

@@ -14,7 +14,8 @@ return new class extends Migration
         //
         Schema::create('ventes', function(Blueprint $table){
             $table->id();
-            $table->foreignId('service_id')->constrained('services')->onDelete('cascade');
+            $table->foreignId('stock_id')->constrained('stock')->onDelete('cascade');
+            $table->string('reference')->unique();
             $table->string('nom_client');
             $table->string('numero');
             $table->integer('quantite')->nullable();

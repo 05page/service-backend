@@ -16,31 +16,29 @@ class FournisseurController extends Controller
     //
     private function createurActuel()
     {
-        return Auth::user();
+        $user = Auth::user();
+        if ($user->role !== User::ROLE_ADMIN) {
+            return false;
+        }
+        return $user;
     }
 
     public function createFournisseur(Request $request): JsonResponse
     {
         try {
-
-            $user = Auth::user();
-            if ($user->role !== User::ROLE_ADMIN) {
-                 /** @var User $user */
-                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_FOURNISSEURS)->where('active', true)->exists();
-                if (!$hasPermission) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Accès refusé. Vous n’avez pas la permission pour cette action.'
-                    ], 403);
-                }
+            if (Auth::user()->role !== User::ROLE_ADMIN) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès refusé. Seuls les admins peuvent créer des employés/intermédiaires.'
+                ], 403);
             }
 
             $validator = $request->validate([
                 'nom_fournisseurs' => 'required|string|max:300',
                 'email' => 'required|email|unique:fournisseurs,email',
                 'telephone' => 'required|string|max:10',
-                'adresse' => 'required|string|max:300',
-                'description' => 'required|string|max:500'
+                'description' => 'required|string|max:500',
+                'adresse' => 'required|string|max:300'
             ]);
             DB::beginTransaction();
 
@@ -86,17 +84,11 @@ class FournisseurController extends Controller
     public function showFournisseur(): JsonResponse
     {
         try {
-
-            $user = Auth::user();
-            if ($user->role !== User::ROLE_ADMIN) {
-                 /** @var User $user */
-                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_FOURNISSEURS)->where('active', true)->exists();
-                if (!$hasPermission) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Accès refusé. Vous n’avez pas la permission pour cette action.'
-                    ], 403);
-                }
+            if (Auth::user()->role !== User::ROLE_ADMIN) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès refusé. Seuls les admins peuvent créer des employés/intermédiaires.'
+                ], 403);
             }
 
             $fournisseurs = Fournisseurs::with([
@@ -128,17 +120,11 @@ class FournisseurController extends Controller
     public function selectFournisseur($id): JsonResponse
     {
         try {
-
-            $user = Auth::user();
-            if ($user->role !== User::ROLE_ADMIN) {
-                 /** @var User $user */
-                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_FOURNISSEURS)->where('active', true)->exists();
-                if (!$hasPermission) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Accès refusé. Vous n’avez pas la permission pour cette action.'
-                    ], 403);
-                }
+            if (Auth::user()->role !== User::ROLE_ADMIN) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès refusé. Seuls les admins peuvent créer des employés/intermédiaires.'
+                ], 403);
             }
 
             $fournisseur = Fournisseurs::with([
@@ -163,6 +149,56 @@ class FournisseurController extends Controller
                 'success' => false,
                 'message' => 'Erreur lors de la récupération des données',
                 'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function desactiverFournisseur($id): JsonResponse
+    {
+        try {
+            if (Auth::user()->role !== User::ROLE_ADMIN) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès refusé. Seuls les admins peuvent créer des employés/intermédiaires.'
+                ], 403);
+            }
+
+            $desactiveFournisseur = Fournisseurs::findOrFail($id);
+            $desactiveFournisseur->desactiver();
+            return response()->json([
+                'success' => true,
+                'message' => "Fournisseur désactiver avec succès"
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "Une erreur est survenue lors de la désactivation du fournisseur",
+                'errors' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function reactiverFournisseur($id): JsonResponse
+    {
+        try {
+            if (Auth::user()->role !== User::ROLE_ADMIN) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès refusé. Seuls les admins peuvent créer des employés/intermédiaires.'
+                ], 403);
+            }
+
+            $desactiveFournisseur = Fournisseurs::findOrFail($id);
+            $desactiveFournisseur->reactiver();
+            return response()->json([
+                'success' => true,
+                'message' => "Fournisseur réactiver avec succès"
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "Une erreur est survenue lors de la réactivation du fournisseur",
+                'errors' => $e->getMessage()
             ], 500);
         }
     }

@@ -24,7 +24,8 @@ class Services extends Model
     ];
 
     const SERVICE_DISPONIBLE = "disponible";
-    const SERVICE_NON_DISPONIBLE = "non disponible";
+    const SERVICE_RUPTURE = "rupture";
+    const SERVICE_ALERTE = "Alerte";
 
     public function addBy(): BelongsTo
     {
@@ -36,6 +37,26 @@ class Services extends Model
         return $this->belongsTo(Fournisseurs::class, 'fournisseur_id');
     }
 
+    /** */
+
+    public function scopeStatut($query, $statut)
+    {
+        return $query->where('statut', $statut);
+    }
+
+    public function scopeDisponible($query)
+    {
+        return $query->where('statut', self::SERVICE_DISPONIBLE);
+    }
+
+    public function scopeRupture($query){
+        return $query->where('statut', self::SERVICE_RUPTURE);
+    }
+
+    public function scopeAlerte($query){
+        return $query->where('statut', self::SERVICE_ALERTE);
+    }
+    
     public function actif(): bool
     {
         return $this->actif;
