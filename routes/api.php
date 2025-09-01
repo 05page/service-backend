@@ -12,7 +12,6 @@ use App\Http\Controllers\VentesController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
@@ -30,6 +29,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::put('/update', [ProfileController::class, 'updateProfile']);
     Route::post('/password/change', [PasswordController::class, 'changePassword']);
+
+    Route::get('/dashboard', [StatsController::class, 'statsDashboard']);
 
     Route::prefix('admin')->group(function () {
         Route::post('/createUser', [EmployeIntermediaireController::class, 'createUser']);
@@ -70,8 +71,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('ventes')->group(function () {
         Route::post('/', [VentesController::class, 'createVente']);
         Route::get('/', [VentesController::class, 'showVentes']);         // Voir détail (view_suppliers)
-        Route::get('/myStats/{userdId}', [StatsController::class, 'myStats']);
         Route::get('/allStats', [StatsController::class, 'allStats']);
+        Route::get('/myStats/{userdId}', [StatsController::class, 'myStats']);
         Route::get('{id}', [VentesController::class, 'selectVente']);
         Route::put('{id}', [VentesController::class, 'update']);       // Modifier (edit_suppliers)
         Route::post('/validePaye/{id}', [VentesController::class, 'marquePayer']);       // Modifier (edit_suppliers)
