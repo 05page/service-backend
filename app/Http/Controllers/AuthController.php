@@ -42,10 +42,6 @@ class AuthController extends Controller
             // TEMPORAIRE : Désactiver l'envoi d'email pour les tests
             event(new Registered($user));
 
-            // Marquer l'email comme vérifié pour les tests
-            // $user->email_verified_at = now();
-            // $user->save();
-
             $token = $user->createToken('auth_token')->plainTextToken;
 
             DB::commit();
@@ -69,7 +65,7 @@ class AuthController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de l\'inscription',
+                'message' => 'Erreur survenue lors de l\'inscription',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -134,7 +130,7 @@ class AuthController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la connexion',
+                'message' => 'Erreur survenue lors de la connexion',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -191,7 +187,7 @@ class AuthController extends Controller
             return response()->json([
                 'response_code' => 500,
                 'status' => 'error',
-                'message' => 'Erreur lors de la vérification',
+                'message' => 'Erreur survenue lors de la vérification',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -241,7 +237,7 @@ class AuthController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la connexion',
+                'message' => 'Erreur survenue lors de la connexion',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -261,7 +257,7 @@ class AuthController extends Controller
             return response()->json([
                 'response_code' => 500,
                 'status' => 'error',
-                'message' => 'Erreur lors de la déconnexion',
+                'message' => 'Erreur survenue lors de la déconnexion',
                 'error' => $e->getMessage()
             ], 500);
         }

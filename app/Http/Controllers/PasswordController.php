@@ -20,7 +20,7 @@ class PasswordController extends Controller
 
             // Validation des données
             $request->validate([
-                'email'=> 'required|email|exists:users,eamil' // Vérifier si l'email existe dans la base de données
+                'email'=> 'required|email|exists:users,email' // Vérifier si l'email existe dans la base de données
             ]);
 
             $user = User::where('email', $request->email)->first(); // Récupérer l'utilisateur par son email

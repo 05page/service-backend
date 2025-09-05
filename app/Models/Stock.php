@@ -13,7 +13,9 @@ class Stock extends Model
     protected $table = "stock";
     protected $fillable = [
         'nom_produit',
-        'code_produit',
+        'code_prodnumero_uit',
+        'numero_achat',
+        'achat_id',
         'categorie',
         'fournisseur_id',
         'quantite', // Note: Corrigé la faute de frappe de la migration
@@ -33,13 +35,8 @@ class Stock extends Model
     ];
 
     // Constantes pour les seuils
-    const STOCK_FAIBLE = 5;
+    const STOCK_FAIBLE = 2;
     const STOCK_RUPTURE = 0;
-
-    public static function generateCode(): string
-    {
-        return Str::random(6);
-    }
 
     /**
      * Relation avec l'utilisateur qui a créé l'entrée stock
@@ -104,10 +101,10 @@ class Stock extends Model
 
     public function isStockRupture(): bool
     {
-        return $this->quantite == 0;
+        return $this->quantite == self::STOCK_RUPTURE;
     }
 
-    /**Désactiver le produi */
+    /**Désactiver le produit */
     public function desactiver(): bool
     {
         $this->actif = false;
@@ -128,6 +125,8 @@ class Stock extends Model
         }
 
         $this->quantite -= $quantite;
+        $this->statut = $this->getStatutStock();
+        $this->actif = false;
         return $this->save();
     }
 
@@ -149,23 +148,44 @@ class Stock extends Model
         }
 
         if ($this->quantite == 0) {
-            return 'épuisé';
-        }
-
-        if ($this->isStockCritique()) {
-            return 'critique';
+            return 'rupture';
         }
 
         if ($this->isStockFaible()) {
-            return 'faible';
+            return 'alert';
         }
 
-        return 'normal';
+        return 'disponible';
+    }
+
+    public function updateStatut(): bool{
+        $this->statut = $this->getStatutStock();
+        return $this->save();
     }
 
     public function achats(): HasMany
     {
         return $this->hasMany(Achats::class, 'stock_id');
+    }
+
+    public function achat()
+    {
+        // Un stock est lié à un seul achat
+        return $this->belongsTo(Achats::class, 'achat_id');
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($stock) {
+            $year = date('Y');
+            $lastStock = self::whereYear('created_at', $year)->latest('id')->first();
+            $lastNumber = $lastStock ? intval(substr($lastStock->code_produit, -3)) : 0;
+            $nextNumber = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
+
+            $stock->code_produit = "STCK-{$year}-{$nextNumber}";
+        });
     }
 
     public function getResume(): array

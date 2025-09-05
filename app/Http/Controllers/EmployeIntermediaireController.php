@@ -37,7 +37,7 @@ class EmployeIntermediaireController extends Controller
                 'email' => 'required|email|unique:users,email',
                 'telephone' => 'required|string|max:10',
                 'adresse' => 'required|string|max:300',
-                'role' => ['required', Rule::in([User::ROLE_EMPLOYE, User::ROLE_INTERMEDIAIRE])],
+                'role' => ['required', Rule::in([User::ROLE_EMPLOYE])],
                 // 'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()]
 
             ]);
@@ -79,7 +79,7 @@ class EmployeIntermediaireController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la création',
+                'message' => 'Erreur survenue lors de la création',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -139,7 +139,7 @@ class EmployeIntermediaireController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de l\'activation',
+                'message' => 'Erreur survenue lors de l\'activation',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -176,7 +176,7 @@ class EmployeIntermediaireController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des données',
+                'message' => 'Erreur survenue lors de la récupération des données',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -210,7 +210,7 @@ class EmployeIntermediaireController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des données',
+                'message' => 'Erreur survenue lors de la récupération des données',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -271,7 +271,7 @@ class EmployeIntermediaireController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la mise à jour du profil',
+                'message' => 'Erreur survenue lors de la mise à jour du profil',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -297,7 +297,7 @@ class EmployeIntermediaireController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la suppression de cet employé',
+                'message' => 'Erreur survenue lors de la suppression de cet employé',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -358,8 +358,9 @@ class EmployeIntermediaireController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => "Erreur lors de l'activation de ce compte"
-            ]);
+                'message' => "Erreur lors de l'activation de ce compte",
+                'errors'=> $e->getMessage()
+            ], 500);
         }
     }
 
@@ -390,8 +391,9 @@ class EmployeIntermediaireController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => "Erreur lors de la désactivation de ce compte"
-            ]);
+                'message' => "Erreur lors de la désactivation de ce compte",
+                'errors'=> $e->getMessage()
+            ], 500);
         }
     }
 }

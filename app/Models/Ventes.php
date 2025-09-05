@@ -192,7 +192,6 @@ class Ventes extends Model
     {
         parent::boot();
 
-        parent::boot();
         static::creating(function ($vente) {
             $year = date('Y');
 

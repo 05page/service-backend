@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Permissions;
+use App\Models\Stock;
 use App\Models\User;
 use App\Models\Ventes;
 use Illuminate\Http\JsonResponse;
@@ -53,11 +54,14 @@ class VentesController extends Controller
                 ])],
             ]);
 
+            //On récupère
+
+            $stock = Stock::where('id', $validated['stock_id'])->where('statut', 'disponible')->first();
             DB::beginTransaction();
 
             $vente = new Ventes([
                 // 'reference' => Ventes::generateRef(),
-                'stock_id' => $validated['stock_id'],
+                'stock_id' => $stock->id,
                 'nom_client' => $validated['nom_client'],
                 'numero' => $validated['numero'],
                 'quantite' => $validated['quantite'],
@@ -92,7 +96,7 @@ class VentesController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la création de la vente',
+                'message' => 'Erreur survenue lors de la création de la vente',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -157,7 +161,7 @@ class VentesController extends Controller
             return response()->json([
                 'succes' => true,
                 'data' => $ventes
-            ], 201);
+            ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'succes' => false,
@@ -242,7 +246,7 @@ class VentesController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la mise à jour de la vente',
+                'message' => 'Erreur survenue lors de la mise à jour de la vente',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -306,7 +310,7 @@ class VentesController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors du marquage de la vente',
+                'message' => 'Erreur survenue lors du marquage de la vente',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -340,7 +344,7 @@ class VentesController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la suppression de la vente',
+                'message' => 'Erreur survenue lors de la suppression de la vente',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -374,7 +378,40 @@ class VentesController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la suppression de toutes les ventes',
+                'message' => 'Erreur survenue lors de la suppression de toutes les ventes',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function myStats(int $userId): JsonResponse
+    {
+        try {
+            if (!$this->verifierPermissions()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'accès réfusé'
+                ], 403);
+            }
+            $myStats = [
+                'total_ventes' => Ventes::where('created_by', $userId)->count(),
+                'ventes_en_attente' => Ventes::where('created_by', $userId)->EnAttente()->count(),
+                'ventes_paye' => Ventes::where('created_by', $userId)->Paye()->count(),
+                'ventes_annule' => Ventes::where('created_by', $userId)->Annule()->count(),
+                'chiffres_affaire_total' => Ventes::where('created_by', $userId)->Paye()->sum('prix_total'),
+                'mes_clients'=>Ventes::where('created_by', $userId)->distinct("nom_client")->count("nom_client"),
+
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => $myStats,
+                'message' => 'Vos statistiques ont été récupérées avec succès'
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur survenue lors de la récupération des statistiques',
                 'error' => $e->getMessage()
             ], 500);
         }

@@ -38,7 +38,7 @@ class ProfileController extends Controller
             return response()->json([
                 'response_code' => 500,
                 'status' => 'error',
-                'message' => 'Erreur lors de la récupération des informations',
+                'message' => 'Erreur survenue lors de la récupération des informations',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -101,7 +101,7 @@ class ProfileController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la mise à jour du profil',
+                'message' => 'Erreur survenue lors de la mise à jour du profil',
                 'error' => $e->getMessage()
             ], 500);
         }

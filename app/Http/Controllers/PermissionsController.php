@@ -34,22 +34,35 @@ class PermissionsController extends Controller
 
             DB::beginTransaction();
 
+            $employe = User::where('id', $validatePermission['employe_id'])->where('role', 'employe')->firstOrFail();
+            // Vérifier si la permission existe déjà pour cet employé
+            $exists = Permissions::where('employe_id', $employe->id)
+                ->where('module', $validatePermission['module'])
+                ->exists();
+
+            if ($exists) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => "Cet employé a déjà la permission pour le module {$validatePermission['module']}."
+                ], 400);
+            }
             $permissions = Permissions::create([
                 'description' => $validatePermission['description'],
                 'module' => $validatePermission['module'],
 
                 'created_by' => Auth::id(),
-                'employe_id' => $validatePermission['employe_id']
+                'employe_id' => $employe->id
             ]);
 
-            $employe = User::findOrFail($validatePermission['employe_id']); // permet de récupérer l'employé
-            $modules = $employe->permissions()->pluck('module')->toArray(); // permet de récupérer les modules de l'employé
-            $employe->update(['permissions' => $modules]); // permet de mettre à jour les modules de l'employé
+            // $employe = User::findOrFail($validatePermission['employe_id']); // permet de récupérer l'employé
+            // $modules = $employe->permissions()->pluck('module')->toArray(); // permet de récupérer les modules de l'employé
+            // $employe->update(['permissions' => $modules]); // permet de mettre à jour les modules de l'employé
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'data' => $permissions,
+                'data' => $permissions->load('employe'),
                 'message' => "Permission attribuée avec succès"
             ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -62,7 +75,7 @@ class PermissionsController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la création',
+                'message' => 'Erreur survenue lors de la création',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -97,7 +110,7 @@ class PermissionsController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des données',
+                'message' => 'Erreur survenue lors de la récupération des données',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -131,7 +144,7 @@ class PermissionsController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des données',
+                'message' => 'Erreur survenue lors de la récupération des données',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -156,12 +169,12 @@ class PermissionsController extends Controller
                 'message' => $permission->active
                     ? "Permission activée avec succès."
                     : "Permission désactivée avec succès.",
-                
+
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => "Erreur lors de l'activation/désactivation de la permission",
+                'message' => "Erreur survenue lors de l'activation/désactivation de la permission",
                 'error' => $e->getMessage()
             ], 500);
         }

@@ -15,52 +15,20 @@ use Illuminate\Support\Facades\DB;
 class StatsController extends Controller
 {
     //
-    private function verifierPermissions()
-    {
-        $user = Auth::user();
-        if ($user->role !== User::ROLE_ADMIN) {
-            /** @var User $user */
-            $hasPermission = $user->permissions()
-                ->where('module', Permissions::MODULE_VENTES)
-                ->where('active', true)->exists();
-            if (!$hasPermission) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    public function myStats(int $userId): JsonResponse
-    {
-        try {
-            if (!$this->verifierPermissions()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'accès réfusé'
-                ], 403);
-            }
-            $myStats = [
-                'total_ventes' => Ventes::where('created_by', $userId)->count(),
-                'ventes_en_attente' => Ventes::where('created_by', $userId)->EnAttente()->count(),
-                'ventes_paye' => Ventes::where('created_by', $userId)->Paye()->count(),
-                'ventes_annule' => Ventes::where('created_by', $userId)->Annule()->count(),
-                'chiffres_affaire_total' => Ventes::where('created_by', $userId)->Paye()->sum('prix_total'),
-                'mes_clients'=>Ventes::where('created_by', $userId)->distinct("nom_client")->count("nom_client"),
-            ];
-
-            return response()->json([
-                'success' => true,
-                'data' => $myStats,
-                'message' => 'Vos statistiques ont été récupérées avec succès'
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur survenue lors de la récupération des statistiques',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
+    // private function verifierPermissions()
+    // {
+    //     $user = Auth::user();
+    //     if ($user->role !== User::ROLE_ADMIN) {
+    //         /** @var User $user */
+    //         $hasPermission = $user->permissions()
+    //             ->where('module', Permissions::MODULE_VENTES)
+    //             ->where('active', true)->exists();
+    //         if (!$hasPermission) {
+    //             return false;
+    //         }
+    //     }
+    //     return true;
+    // }
 
     public function allStats(): JsonResponse
     {
@@ -87,7 +55,7 @@ class StatsController extends Controller
                 'success' => true,
                 'data' => $allStats,
                 'message' => 'Statistiques récupérées avec succès'
-            ], 201);
+            ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

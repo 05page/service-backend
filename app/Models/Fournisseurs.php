@@ -24,11 +24,6 @@ class Fournisseurs extends Model
         'actif' => 'boolean',
     ];
 
-    // // Constantes pour les statuts
-    // const STATUT_EN_ATTENTE = 'en_attente';
-    // const STATUT_APPROUVE = 'approuve';
-    // const STATUT_REJETE = 'rejete';
-
     /**
      * Relation polymorphe avec celui qui a créé le fournisseur
      * Peut être un User (admin) ou un EmployeIntermediaire (employé)
@@ -37,7 +32,6 @@ class Fournisseurs extends Model
     {
        return $this->belongsTo(User::class, 'created_by');
     }
-
 
     public function scopeActif($query)
     {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\Achats;
 use App\Models\Permissions;
 use App\Models\Fournisseurs;
 use App\Models\User;
@@ -14,22 +15,26 @@ use Illuminate\Support\Facades\DB;
 class FournisseurController extends Controller
 {
     //
-    private function createurActuel()
+    private function verifierPermission()
     {
         $user = Auth::user();
         if ($user->role !== User::ROLE_ADMIN) {
-            return false;
+            /** @var User $user */
+            $hasPermission = $user->permissions()->where('module', Permissions::MODULE_FOURNISSEURS)->where('active', true)->exists();
+            if (!$hasPermission) {
+                return false;
+            }
         }
-        return $user;
+        return true;
     }
 
     public function createFournisseur(Request $request): JsonResponse
     {
         try {
-            if (Auth::user()->role !== User::ROLE_ADMIN) {
+            if (!$this->verifierPermission()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Accès refusé. Seuls les admins peuvent créer des employés/intermédiaires.'
+                    'message' => "Accès réfusé.Seul un employé ayant une permission peut effectuer cette tache",
                 ], 403);
             }
 
@@ -42,7 +47,7 @@ class FournisseurController extends Controller
             ]);
             DB::beginTransaction();
 
-            $createur = $this->createurActuel();
+            $createur = Auth::user();
             if (!$createur) {
                 return response()->json([
                     'success' => false,
@@ -75,7 +80,7 @@ class FournisseurController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors survenue lors d\'ajout du fournisseur',
+                'message' => 'Erreur survenue lors survenue lors d\'ajout du fournisseur',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -147,7 +152,7 @@ class FournisseurController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des données',
+                'message' => 'Erreur survenue lors de la récupération des données',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -199,6 +204,36 @@ class FournisseurController extends Controller
                 'success' => false,
                 'message' => "Une erreur est survenue lors de la réactivation du fournisseur",
                 'errors' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function statsFournisseurs(): JsonResponse
+    {
+        try{
+            if(!$this->verifierPermission()){
+                return response()->json([
+                    'success'=>false,
+                    'message'=> "Accès refusé."
+                ], 403);
+            }
+
+            $statFournisseurs = [
+                'total_fournisseurs'=>Fournisseurs::count(),
+                'total_fournisseurs_actifs'=>Fournisseurs::Actif()->count(),
+                'total_commande'=>Achats::Commande()->whereMonth('created_at', now()->month)->count()
+            ];
+
+            return response()->json([
+                'success'=> true,
+                'data'=> $statFournisseurs,
+                'message'=> "succès"
+            ]);
+        }catch(\Exception $e){
+            return response()->json([
+                'success'=>false,
+                'message' => 'Erreur survenue lors de la récupération des statistiques',
+                'errors'=> $e->getMessage()
             ], 500);
         }
     }
