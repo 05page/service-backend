@@ -306,31 +306,32 @@
     </style>
 </head>
 <body>
-        <div class="email-container">
+    <div class="email-container">
         <div class="header">
             <h1>🚀 Bienvenue !</h1>
-            <p>Activation de votre compte {{ ucfirst($user->type) }}</p>
+            <p>Activation de votre compte Utilisateur</p>
         </div>
 
         <div class="content">
             <div class="greeting">
-                Bonjour <strong>{{ $user->fullname }}</strong>,
+                Bonjour <strong>Jean Dupont</strong>,
             </div>
             
-            <p>Félicitations ! Votre compte {{ $user->role }} a été créé avec succès. Pour commencer à utiliser notre plateforme, vous devez d'abord activer votre compte.</p>
+            <p>Félicitations ! Votre compte a été créé avec succès. Pour commencer à utiliser notre plateforme, vous devez d'abord activer votre compte.</p>
 
             <div class="code-section">
                 <div class="code-label">Votre code d'activation</div>
-                <a href="{{$activationLink}}" class="activation-link">
-                    <div class="activation-code">{{ $user->activation_code }}</div>
+                <a href="#activation-link" class="activation-link">
+                    <div class="activation-code">BZVipYZC</div>
                 </a>
+                <div class="click-indicator">Cliquez pour activer</div>
             </div>
 
             <div class="instructions">
                 <div class="instructions-title">Instructions importantes</div>
                 <ul>
                     <li>Ce code est valable pendant <strong>7 jours</strong></li>
-                    <li>Utilisez ce code pour activer votre compte</li>
+                    <li>Cliquez sur le code ou utilisez-le pour activer votre compte</li>
                     <li>Après activation, vous pourrez créer votre mot de passe</li>
                     <li>Ne partagez jamais ce code avec d'autres personnes</li>
                 </ul>
@@ -339,12 +340,12 @@
             <p>Si vous avez des questions, n'hésitez pas à contacter notre équipe support.</p>
 
             <p>Cordialement,<br>
-            <span class="company-name">L'équipe {{ config('app.name') }}</span></p>
+            <span class="company-name">L'équipe MonApp</span></p>
         </div>
 
         <div class="footer">
             <p>Cet email a été envoyé automatiquement, merci de ne pas y répondre.</p>
-            <p>&copy; {{ date('Y') }} {{ config('app.name') }}. Tous droits réservés.</p>
+            <p>&copy; 2025 MonApp. Tous droits réservés.</p>
         </div>
     </div>
 </body>

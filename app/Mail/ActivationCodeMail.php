@@ -18,6 +18,7 @@ class ActivationCodeMail extends Mailable
     use Queueable, SerializesModels;
 
     public $user;
+    public $activationLink;
     /**
      * Create a new message instance.
      */
@@ -25,6 +26,7 @@ class ActivationCodeMail extends Mailable
     {
         //
         $this->user = $user;
+        $this->activationLink = config('app.frontend_url') . '/passwordV';
     }
 
 
@@ -47,9 +49,11 @@ class ActivationCodeMail extends Mailable
         return new Content(
             view: 'emails.activation-code',
             with:[
+                    'user'=>$this->user,
                     'employeIntermediaire'=> $this->user,
                     'code'=> $this->user->activation_code,
-                    'type'=> $this->user->type
+                    'type'=> $this->user->type,
+                    'activationLink'=> $this->activationLink
                 ]
             );
 

@@ -197,19 +197,18 @@ class AuthController extends Controller
     {
         try {
             $validated = $request->validate([
-                'email' => 'required|email|exists:users,email',
+                'user_id' => 'required|exists:users,id',
                 'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
             ]);
 
-            $user = User::where('email', $validated['email'])->first();
-
+             $user = User::find($validated['user_id']);
             // Vérifier que le compte est activé mais sans mot de passe
-            if (!$user->activate_code()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Votre compte doit d\'abord être activé.'
-                ], 400);
-            }
+            // if (!$user->activate_code()) {
+            //     return response()->json([
+            //         'success' => false,
+            //         'message' => 'Votre compte doit d\'abord être activé.'
+            //     ], 400);
+            // }
 
             if (!is_null($user->password)) {
                 return response()->json([
@@ -223,6 +222,8 @@ class AuthController extends Controller
                 'password' => $validated['password'],
             ]);
             $user->email_verified_at = now();
+            $user->activation_code = null;
+            $user->activated_at = now();
             $user->save();
             return response()->json([
                 'success' => true,

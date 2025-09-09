@@ -37,7 +37,6 @@ class EmployeIntermediaireController extends Controller
                 'email' => 'required|email|unique:users,email',
                 'telephone' => 'required|string|max:10',
                 'adresse' => 'required|string|max:300',
-                'role' => ['required', Rule::in([User::ROLE_EMPLOYE])],
                 // 'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()]
 
             ]);
@@ -50,7 +49,7 @@ class EmployeIntermediaireController extends Controller
                 'email' => $validateUser['email'],
                 'telephone' => $validateUser['telephone'],
                 'adresse' => $validateUser['adresse'],
-                'role' => $validateUser['role'],
+                'role' => User::ROLE_EMPLOYE,
                 'password' => $validateUser['password'] ?? null,
                 'created_by' => Auth::id(),
             ]);
@@ -118,7 +117,7 @@ class EmployeIntermediaireController extends Controller
             }
 
             // Activer le compte (met à jour activated_at et supprime le code)
-            $employeIntermediaire->activate_code();
+            // $employeIntermediaire->activate_code();
 
             // Recharger les données depuis la base pour avoir les infos à jour
             $employeIntermediaire->refresh();
