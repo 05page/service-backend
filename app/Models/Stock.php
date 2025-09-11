@@ -71,6 +71,11 @@ class Stock extends Model
         return $query->where('quantite', '<=', self::STOCK_FAIBLE);
     }
 
+    public function scopeRupture($query)
+    {
+        return $query->where('quantite', '=', 0);
+    }
+
     public function scopeStockDisponible($query)
     {
         return $query->where('quantite', '>', 0);
@@ -126,7 +131,7 @@ class Stock extends Model
 
         $this->quantite -= $quantite;
         $this->statut = $this->getStatutStock();
-        $this->actif = false;
+        $this->actif = $this->quantite > 0;
         return $this->save();
     }
 

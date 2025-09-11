@@ -91,7 +91,7 @@ class StockController extends Controller
         }
     }
 
-    public function showStocks(): JsonResponse
+    public function showStocks(Request $request): JsonResponse
     {
         try {
             $user = Auth::user();
@@ -106,7 +106,7 @@ class StockController extends Controller
                 }
             }
 
-            $stocks = Stock::with(['creePar:id,fullname,email,role', 'fournisseur:id,nom_fournisseurs'])->select(
+            $query = Stock::with(['creePar:id,fullname,email,role', 'fournisseur:id,nom_fournisseurs'])->select(
                 'fournisseur_id',
                 'nom_produit',
                 'quantite',
@@ -115,7 +115,22 @@ class StockController extends Controller
                 'actif',
                 'created_by',
                 'created_at'
-            )->get();
+            );
+
+            if($request->filled('statut')){
+                switch($request->statut){
+                    case 'disponible':
+                        $query->stockDisponible();
+                        break;
+                    case 'faible':
+                        $query->stockFaible();
+                        break; 
+                    case 'rupture':
+                        $query->rupture();       
+                }
+            }
+
+            $stocks = $query->get();
 
             return response()->json([
                 'success' => true,
