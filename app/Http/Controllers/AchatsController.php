@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Achats;
+use App\Models\Fournisseurs;
 use App\Models\Permissions;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -42,17 +43,12 @@ class AchatsController extends Controller
 
             $validated = $request->validate([
                 'fournisseur_id' => 'required|exists:fournisseurs,id',
-                'nom_service' => 'required|string|max:300',
+                'nom_service' => 'required|string|max:500',
                 'quantite' => 'required|integer|min:1',
                 'prix_unitaire' => 'required|numeric|min:0',
                 'date_commande' => 'required|date',
                 'date_livraison' => 'sometimes|required|date',
                 'statut' => 'sometimes|required',
-                'mode_paiement' => ['sometimes', Rule::in([
-                    Achats::MODE_PAIMENT_VIREMENT,
-                    Achats::MODE_PAIEMENT_ESPECES,
-                    Achats::MODE_PAIEMENT_MOBILE_MONEY,
-                ])],
                 'description' => 'sometimes|nullable',
             ]);
 
@@ -66,7 +62,7 @@ class AchatsController extends Controller
                 'date_commande' => $validated['date_commande'],
                 'date_livraison' => $validated['date_livraison'],
                 'statut' => $validated['statut'] ?? Achats::ACHAT_COMMANDE,
-                'mode_paiement' => $validated['mode_paiement'] ?? Achats::MODE_PAIEMENT_ESPECES,
+                // 'mode_paiement' => $validated['mode_paiement'] ?? Achats::MODE_PAIEMENT_ESPECES,
                 'description' => $validated['description'] ?? null,
                 'created_by' => Auth::id()
             ]);
@@ -107,6 +103,7 @@ class AchatsController extends Controller
                 ], 403);
             }
             $query = Achats::with(['creePar:id,fullname,email,role', 'fournisseur:id,nom_fournisseurs'])->select(
+                'id',
                 'fournisseur_id',
                 'nom_service',
                 'quantite',
@@ -114,8 +111,9 @@ class AchatsController extends Controller
                 'prix_total',
                 'numero_achat',
                 'date_commande',
-                'date_livraison',
-                'mode_paiement',
+                'date_livraison_reelle',
+                // 'mode_paiement',
+                'statut',
                 'created_by',
                 'created_at'
             );
@@ -148,7 +146,7 @@ class AchatsController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => "Erreur est survenue lors de la récupérarion des ventes",
+                'message' => "Erreur est survenue lors de la récupérarion des achats",
                 'errors' => $e->getMessage()
             ], 500);
         }
@@ -203,7 +201,8 @@ class AchatsController extends Controller
                 'numero_achat',
                 'date_commande',
                 'date_livraison',
-                'mode_paiement',
+                // 'mode_paiement',
+                'statut',
                 'created_by',
                 'created_at'
             )->findOrFail($id);
@@ -240,10 +239,10 @@ class AchatsController extends Controller
                 'date_commande' => 'sometimes|required|date',
                 'date_livraison' => 'sometimes|required|date',
                 'statut' => 'sometimes|required',
-                'mode_paiement' => ['sometimes', Rule::in([
-                    Achats::MODE_PAIMENT_VIREMENT,
-                    Achats::MODE_PAIEMENT_ESPECES
-                ])],
+                // 'mode_paiement' => ['sometimes', Rule::in([
+                //     Achats::MODE_PAIMENT_VIREMENT,
+                //     Achats::MODE_PAIEMENT_ESPECES
+                // ])],
                 'description' => 'sometimes|nullable',
             ]);
 
@@ -388,7 +387,7 @@ class AchatsController extends Controller
             $deleteAchat->delete();
             DB::commit();
 
-            return response()->json([
+            return response()->json([ 
                 'success' => true,
                 'message' => 'Achat supprimée avec succès'
             ]);

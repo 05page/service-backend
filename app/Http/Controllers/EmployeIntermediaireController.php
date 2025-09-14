@@ -158,6 +158,7 @@ class EmployeIntermediaireController extends Controller
             }
 
             $employesIntermediaires = User::select(
+                'id',
                 'fullname',
                 'email',
                 'telephone',
@@ -192,6 +193,7 @@ class EmployeIntermediaireController extends Controller
             }
 
             $employesIntermediaires = User::select(
+                'id',
                 'fullname',
                 'email',
                 'telephone',

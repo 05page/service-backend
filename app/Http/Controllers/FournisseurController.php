@@ -99,6 +99,7 @@ class FournisseurController extends Controller
             $fournisseurs = Fournisseurs::with([
                 'creePar:id,fullname,email'
             ])->select(
+                'id',
                 'nom_fournisseurs',
                 'email',
                 'telephone',
@@ -135,6 +136,7 @@ class FournisseurController extends Controller
             $fournisseur = Fournisseurs::with([
                 'creePar:id,fullname,email'
             ])->select(
+                'id',
                 'nom_fournisseurs',
                 'email',
                 'telephone',

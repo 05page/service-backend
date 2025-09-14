@@ -156,7 +156,7 @@ class Stock extends Model
             return 'rupture';
         }
 
-        if ($this->isStockFaible()) {
+        if ($this->isFaible()) {
             return 'alert';
         }
 

@@ -107,6 +107,7 @@ class StockController extends Controller
             }
 
             $query = Stock::with(['creePar:id,fullname,email,role', 'fournisseur:id,nom_fournisseurs'])->select(
+                'id',
                 'fournisseur_id',
                 'nom_produit',
                 'quantite',

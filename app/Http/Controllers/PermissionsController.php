@@ -96,6 +96,7 @@ class PermissionsController extends Controller
                 'employe:id,role,fullname,email',        // Seulement les colonnes nécessaires
                 'createdBy:id,fullname,email'         // Seulement les colonnes nécessaires
             ])->select(
+                'id',
                 'employe_id',
                 'created_by',
                 'description',

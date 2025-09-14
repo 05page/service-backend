@@ -77,7 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [VentesController::class, 'createVente']);
         Route::get('/', [VentesController::class, 'showVentes']);         // Voir détail (view_suppliers)
         Route::get('/allStats', [StatsController::class, 'allStats']);
-        Route::get('/myStats/{userdId}', [VentesController::class, 'myStats']);
+        Route::get('/myStats', [VentesController::class, 'myStats']);
         Route::get('{id}', [VentesController::class, 'selectVente']);
         Route::put('{id}', [VentesController::class, 'update']);       // Modifier (edit_suppliers)
         Route::post('/validePaye/{id}', [VentesController::class, 'marquePayer']);       // Modifier (edit_suppliers)

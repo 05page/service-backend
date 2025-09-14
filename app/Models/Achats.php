@@ -16,9 +16,9 @@ class Achats extends Model
         'prix_total',
         'numero_achat',
         'date_commande',
-        'date_livraison',
+        'date_livraison_reelle',
         'statut',
-        'mode_paiement',
+        // 'mode_paiement',
         'description',
         'created_by'
     ];
@@ -32,9 +32,9 @@ class Achats extends Model
     const ACHAT_PAYE = "paye";
     const ACHAT_ANNULE = "annule";
 
-    const MODE_PAIMENT_VIREMENT = "virement";
-    const MODE_PAIEMENT_ESPECES = "especes";
-    const MODE_PAIEMENT_MOBILE_MONEY = "mobile_money";
+    // const MODE_PAIMENT_VIREMENT = "virement";
+    // const MODE_PAIEMENT_ESPECES = "especes";
+    // const MODE_PAIEMENT_MOBILE_MONEY = "mobile_money";
     //Relation 
 
     /**Relation avec l'utilisateur qui crée l'achat */
@@ -171,7 +171,7 @@ class Achats extends Model
             'prix_total'=>$this->prix_total,
             'numero_achat'=>$this->numero_achat,
             'date_commande'=>$this->date_commande,
-            'date_livraison'=> $this->date_livraison,
+            'date_livraison_reelle'=> $this->date_livraison_reelle,
             'statut'=>$this->statut,
             'mode_paiement'=>$this->mode_paiement,
             'description'=>$this->description,

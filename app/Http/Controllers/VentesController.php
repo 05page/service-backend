@@ -54,14 +54,23 @@ class VentesController extends Controller
                 ])],
             ]);
 
-            //On récupère
+            // ✅ CORRECTION : Vérifier si le stock existe ET est disponible
+            $stock = Stock::where('id', $validated['stock_id'])
+                ->where('statut', 'disponible')
+                ->first();
 
-            $stock = Stock::where('id', $validated['stock_id'])->where('statut', 'disponible')->first();
+            if (!$stock) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Stock non trouvé ou indisponible'
+                ], 400);
+            }
+
             DB::beginTransaction();
 
             $vente = new Ventes([
-                // 'reference' => Ventes::generateRef(),
-                'stock_id' => $stock->id,
+                // 'reference' => Ventes::generateRef(), // ✅ Décommentez si nécessaire
+                'stock_id' => $stock->id, // ✅ Maintenant safe car $stock existe
                 'nom_client' => $validated['nom_client'],
                 'numero' => $validated['numero'],
                 'quantite' => $validated['quantite'],
@@ -113,6 +122,7 @@ class VentesController extends Controller
             }
 
             $ventes = Ventes::with(['creePar:id,fullname,email,role', 'stock:id,categorie,nom_produit'])->select(
+                'id',
                 'stock_id',
                 'reference',
                 'nom_client',
@@ -384,30 +394,32 @@ class VentesController extends Controller
         }
     }
 
-    public function myStats(int $userId): JsonResponse
+    public function myStats(): JsonResponse
     {
         try {
             if (!$this->verifierPermissions()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'accès réfusé'
+                    'message' => 'Accès refusé'
                 ], 403);
             }
+
+            $userId = Auth::id(); // ✅ Récupère l'utilisateur connecté
+
             $myStats = [
                 'total_ventes' => Ventes::where('created_by', $userId)->count(),
                 'ventes_en_attente' => Ventes::where('created_by', $userId)->EnAttente()->count(),
                 'ventes_paye' => Ventes::where('created_by', $userId)->Paye()->count(),
                 'ventes_annule' => Ventes::where('created_by', $userId)->Annule()->count(),
                 'chiffres_affaire_total' => Ventes::where('created_by', $userId)->Paye()->sum('prix_total'),
-                'mes_clients'=>Ventes::where('created_by', $userId)->distinct("nom_client")->count("nom_client"),
-
+                'mes_clients' => Ventes::where('created_by', $userId)->distinct("nom_client")->count("nom_client"),
             ];
 
             return response()->json([
                 'success' => true,
                 'data' => $myStats,
                 'message' => 'Vos statistiques ont été récupérées avec succès'
-            ], 201);
+            ], 200); // ✅ 200 OK (201 c'est plutôt pour une création)
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
