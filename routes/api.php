@@ -3,6 +3,7 @@
 use App\Http\Controllers\AchatsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmployeIntermediaireController;
+use App\Http\Controllers\FacturesController;
 use App\Http\Controllers\FournisseurController;
 use App\Http\Controllers\PasswordController;
 use App\Http\Controllers\PermissionsController;
@@ -98,5 +99,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/annuler/{id}', [AchatsController::class, 'marqueAnnule']);       // Modifier (edit_suppliers)
         Route::delete('{id}', [AchatsController::class, 'deleteAchat']);   // Supprimer (delete_suppliers)
         // Route::delete('/', [VentesController::class, 'deleteAll']);   // Supprimer (delete_suppliers)
+    });
+
+    Route::prefix('factures')->group(function () {
+        // Génération directe PDF (workflow unique)
+        Route::get('/vente/{id}/pdf', [FacturesController::class, 'generateFacturePDFFromVente']);
+        Route::get('/achat/{id}/pdf', [FacturesController::class, 'generateFacturePDFFromAchat']);
+        
+        // Consultation
+        Route::get('/', [FacturesController::class, 'index']);
+        Route::get('/{id}', [FacturesController::class, 'show']);
     });
 });

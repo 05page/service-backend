@@ -12,18 +12,14 @@ return new class extends Migration
     public function up(): void
     {
         //
-        Schema::create('ventes', function(Blueprint $table){
+        Schema::create('factures', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('stock_id')->constrained('stock')->onDelete('cascade');
-            $table->string('reference')->unique();
-            $table->string('nom_client');
-            $table->string('numero');
-            $table->string('adresse')->nullable();
-            $table->integer('quantite')->nullable();
-            $table->decimal('prix_total', 10,2);
-            $table->enum('statut', ['en_attente', 'payé', 'annulé']);
+            $table->foreignId('achat_id')->nullable()->constrained('achats')->onDelete('cascade');
+            $table->foreignId('vente_id')->nullable()->constrained('ventes')->onDelete('cascade');
+            $table->string('numero_facture')->unique()->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
+
         });
     }
 
@@ -33,6 +29,6 @@ return new class extends Migration
     public function down(): void
     {
         //
-        Schema::dropIfExists('ventes');
+        Schema::dropIfExists('factures');
     }
 };

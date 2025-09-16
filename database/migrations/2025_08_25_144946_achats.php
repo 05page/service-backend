@@ -15,7 +15,7 @@ return new class extends Migration
         Schema::create('achats', function (Blueprint $table) {
             $table->id();
             $table->foreignId('fournisseur_id')->constrained('fournisseurs')->onDelete('cascade');
-            $table->integer('nom_service');
+            $table->string('nom_service');
             $table->integer('quantite');$table->decimal('prix_unitaire', 10, 2)->nullable(); // Prix à l'unité
             $table->decimal('prix_total', 10, 2); // Total de l'achat (votre champ existant)
             // Numérotation et références
