@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('numero_achat')->unique()->nullable();
             // Dates importantes
             $table->date('date_commande')->nullable(); 
-            $table->date('date_livraison_reelle')->nullable();
+            $table->date('date_livraison')->nullable();
              $table->enum('statut', [
                 'commande',     // Commandé
                 'confirme',     // Confirmé par le fournisseur

@@ -27,16 +27,16 @@ class PermissionsController extends Controller
             }
 
             $validatePermission = $request->validate([
-                'employe_id' => 'required|exists:users,id', // ✅ Ajouté
+                'user_id' => 'required|exists:users,id', // ✅ Ajouté
                 'description' => 'required|string|max:300',
                 'module' => ['required', Rule::in([Permissions::MODULE_FOURNISSEURS, Permissions::MODULE_SERVICES, Permissions::MODULE_ACHATS, Permissions::MODULE_STOCK, Permissions::MODULE_VENTES, Permissions::MODULE_FACTURES])],
             ]);
 
             DB::beginTransaction();
 
-            $employe = User::where('id', $validatePermission['employe_id'])->where('role', 'employe')->firstOrFail();
+            $employe = User::where('id', $validatePermission['user_id'])->where('role', 'employe')->firstOrFail();
             // Vérifier si la permission existe déjà pour cet employé
-            $exists = Permissions::where('employe_id', $employe->id)
+            $exists = Permissions::where('user_id', $employe->id)
                 ->where('module', $validatePermission['module'])
                 ->exists();
 
@@ -52,7 +52,7 @@ class PermissionsController extends Controller
                 'module' => $validatePermission['module'],
 
                 'created_by' => Auth::id(),
-                'employe_id' => $employe->id
+                'user_id' => $employe->id
             ]);
 
             // $employe = User::findOrFail($validatePermission['employe_id']); // permet de récupérer l'employé
@@ -97,10 +97,11 @@ class PermissionsController extends Controller
                 'createdBy:id,fullname,email'         // Seulement les colonnes nécessaires
             ])->select(
                 'id',
-                'employe_id',
+                'user_id',
                 'created_by',
                 'description',
                 'module',
+                'active',
                 'created_at'
             )->get();
 
@@ -131,7 +132,7 @@ class PermissionsController extends Controller
                 'employe:id,role,fullname,email',        // Seulement les colonnes nécessaires
                 'createdBy:id,fullname,email'
             ])->select(
-                'employe_id',
+                'user_id',
                 'created_by',
                 'description',
                 'module',
@@ -180,4 +181,5 @@ class PermissionsController extends Controller
             ], 500);
         }
     }
+    
 }

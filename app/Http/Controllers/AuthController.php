@@ -76,6 +76,7 @@ class AuthController extends Controller
         try {
             $validateLogin = $request->validate([
                 'email' => 'required|email',
+                'role' => ['required', Rule::in([User::ROLE_ADMIN, User::ROLE_EMPLOYE])],
                 'password' => 'required'
             ]);
 
@@ -93,6 +94,12 @@ class AuthController extends Controller
                 ], 401);
             }
 
+            if ($user->role !== $validateLogin['role']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Vous n’avez pas le droit de vous connecter avec ce rôle"
+                ]);
+            }
 
             if (!Auth::attempt($validateLogin)) {
                 return response()->json([
@@ -115,7 +122,12 @@ class AuthController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'user' => $user,
+                    'user' => [
+                        'id' => $user->id,
+                        'fullname' => $user->fullname,
+                        'email' => $user->email,
+                        'role' => $user->role, // ⚡ c’est la BDD qui dit le rôle
+                    ],
                     'token' => $token,
                     'email_verified' => !is_null($user->email_verified_at),
                 ],
@@ -201,7 +213,7 @@ class AuthController extends Controller
                 'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
             ]);
 
-             $user = User::find($validated['user_id']);
+            $user = User::find($validated['user_id']);
             // Vérifier que le compte est activé mais sans mot de passe
             // if (!$user->activate_code()) {
             //     return response()->json([

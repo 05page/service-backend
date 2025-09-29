@@ -25,13 +25,13 @@ class ProfileController extends Controller
                 'response_code' => 200,
                 'status' => 'success',
                 'data' => [
-                    'email_verified' => !is_null($user->email_verified_at), // Vérifier si l'email est vérifié
-                ],
                 'fullname' => $user->fullname,
                 'email' => $user->email,
                 'adresse' => $user->adresse,
                 'telephone' => $user->telephone,
                 'role' => $user->role,
+                    // 'email_verified' => !is_null($user->email_verified_at), // Vérifier si l'email est vérifié
+                ],
                 'message' => 'Informations utilisateur récupérées'
             ]);
         } catch (\Exception $e) {

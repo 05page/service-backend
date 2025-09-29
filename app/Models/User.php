@@ -7,7 +7,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany; 
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Support\Str;
 
@@ -42,6 +42,11 @@ class User extends Authenticatable implements MustVerifyEmail
     const ROLE_ADMIN = 'admin';
     const ROLE_EMPLOYE = 'employe';
     // const ROLE_INTERMEDIAIRE = 'intermediaire';
+
+    public function ventes()
+    {
+        return $this->hasMany(Ventes::class, 'created_by');
+    }
 
     protected static function boot()
     {
@@ -93,7 +98,7 @@ class User extends Authenticatable implements MustVerifyEmail
     //     return $this->role === self::ROLE_INTERMEDIAIRE;
     // }
 
-     public function recordLogin()
+    public function recordLogin()
     {
         $this->update([
             'last_login_at' => now(),

@@ -45,6 +45,7 @@ class VentesController extends Controller
                 'stock_id' => 'required|exists:stock,id',
                 'nom_client' => 'required|string|max:300',
                 'numero' => 'required|string|max:10',
+                'adresse'=> 'required|string|max:500',
                 'quantite' => 'required|integer|min:1',
                 'prix_total' => 'nullable|numeric|min:0',
                 'statut' => ['sometimes', Rule::in([
@@ -74,8 +75,9 @@ class VentesController extends Controller
                 'nom_client' => $validated['nom_client'],
                 'numero' => $validated['numero'],
                 'quantite' => $validated['quantite'],
+                'adresse'=>$validated['adresse'],
                 'prix_total' => $validated['prix_total'] ?? null,
-                'statut' => $validated['statut'] ?? Ventes::STATUT_EN_ATTENTE,
+                'statut' => $validated['statut'] ?? Ventes::STATUT_PAYE,
                 'created_by' => Auth::id(),
             ]);
 
@@ -121,7 +123,7 @@ class VentesController extends Controller
                 ], 403);
             }
 
-            $ventes = Ventes::with(['creePar:id,fullname,email,role', 'stock:id,categorie,nom_produit'])->select(
+            $ventes = Ventes::with(['creePar:id,fullname,email,role', 'stock.achat:id,nom_service'])->select(
                 'id',
                 'stock_id',
                 'reference',
@@ -426,6 +428,51 @@ class VentesController extends Controller
                 'message' => 'Erreur survenue lors de la récupération des statistiques',
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    public function client(): JsonResponse
+    {
+        try{
+            if (!$this->verifierPermissions()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès refusé'
+                ], 403);
+            }
+
+            $client = Ventes::select(
+                'id',
+                'nom_client',
+                'numero',
+                'quantite',
+                'adresse',
+                'prix_total',
+                'stock_id'
+            )->where('statut', 'payé')->with(['stock'])
+            ->get()->groupBy('nom_client')->map(function ($ventes, $nom){
+                return[
+                    'id' => $ventes->first()->id,
+                    'nom_client'=> $nom,
+                    'numero'     => $ventes->first()->numero,
+                    'adresse'    => $ventes->first()->adresse,
+                    'prix_total' => $ventes->sum('prix_total'),
+                    'nombre_ventes' => $ventes->count(),
+                    'ventes'     => $ventes  
+                ];
+            })->values();
+
+            return response()->json([
+                'success'=>true,
+                'message'=>'Client récupéré avec succès',
+                'data'=>$client
+            ]);
+        }catch(\Exception $e){
+            return response()->json([
+                'success'=>false,
+                'message'=> 'Erreur survenue lors de la récupération',
+                'error'=> $e->getMessage()
+            ]);
         }
     }
 }

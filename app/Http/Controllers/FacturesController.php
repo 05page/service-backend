@@ -49,7 +49,7 @@ class FacturesController extends Controller
 
             // Récupérer la vente avec toutes les relations nécessaires
             $vente = Ventes::with([
-                'stock:id,nom_produit,prix_vente,code_produit',
+                'stock.achat',
                 'creePar:id,fullname,email'
             ])->findOrFail($venteId);
 
@@ -91,7 +91,7 @@ class FacturesController extends Controller
                 ],
                 'articles' => [
                     [
-                        'description' => $vente->stock->nom_produit,
+                        'description' => $vente->stock->achat->nom_service,
                         'code' => $vente->stock->code_produit,
                         'quantite' => $vente->quantite,
                         'prix_unitaire' => $vente->stock->prix_vente,
@@ -115,23 +115,25 @@ class FacturesController extends Controller
 
             // Génération du PDF avec DomPDF
             $pdf = Pdf::loadView('factures.pdf', $donneesFacture)
-                ->setPaper('A4', 'portrait')
+                ->setPaper('A4', 'landscape')
                 ->setOptions([
                     'isHtml5ParserEnabled' => true,
                     'isPhpEnabled' => true,
-                    'defaultFont' => 'Arial'
+                    'defaultFont' => 'Arial',
+                    'margin-top' => 10,
+                    'margin-bottom' => 10,
+                    'margin-left' => 10,
+                    'margin-right' => 10,
                 ]);
 
             $nomFichier = "{$facture->numero_facture}.pdf";
 
             return $pdf->download($nomFichier);
-
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Vente introuvable'
             ], 404);
-            
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -236,13 +238,11 @@ class FacturesController extends Controller
             $nomFichier = "{$facture->numero_facture}.pdf";
 
             return $pdf->download($nomFichier);
-
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Achat introuvable'
             ], 404);
-            
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -276,7 +276,6 @@ class FacturesController extends Controller
                 'success' => true,
                 'data' => $factures
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -311,7 +310,6 @@ class FacturesController extends Controller
                 'success' => true,
                 'data' => $facture
             ], 200);
-
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,

@@ -160,6 +160,73 @@ class FournisseurController extends Controller
         }
     }
 
+    public function updateFournisseur(Request $request, $id): JsonResponse
+    {
+        try {
+            if (!$this->verifierPermission()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Accès réfusé. Seul un admin ou un employé ayant la permission peut modifier un fournisseur."
+                ], 403);
+            }
+
+            $validator = $request->validate([
+                'nom_fournisseurs' => 'sometimes|string|max:300',
+                'email' => 'sometimes|email|unique:fournisseurs,email,' . $id,
+                'telephone' => 'sometimes|string|max:10',
+                'description' => 'sometimes|string|max:500',
+                'adresse' => 'sometimes|string|max:300'
+            ]);
+
+            $fournisseur = Fournisseurs::findOrFail($id);
+            $fournisseur->update($validator);
+
+            return response()->json([
+                'success' => true,
+                'data' => $fournisseur->load('creePar'),
+                'message' => "Fournisseur mis à jour avec succès"
+            ], 200);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "Erreur survenue lors de la mise à jour du fournisseur",
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function deleteFournisseur($id): JsonResponse
+    {
+        try {
+            if (Auth::user()->role !== User::ROLE_ADMIN) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Accès refusé. Seuls les admins peuvent supprimer un fournisseur."
+                ], 403);
+            }
+
+            $fournisseur = Fournisseurs::findOrFail($id);
+            $fournisseur->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Fournisseur supprimé avec succès"
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "Erreur survenue lors de la suppression du fournisseur",
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function desactiverFournisseur($id): JsonResponse
     {
         try {
@@ -212,30 +279,30 @@ class FournisseurController extends Controller
 
     public function statsFournisseurs(): JsonResponse
     {
-        try{
-            if(!$this->verifierPermission()){
+        try {
+            if (!$this->verifierPermission()) {
                 return response()->json([
-                    'success'=>false,
-                    'message'=> "Accès refusé."
+                    'success' => false,
+                    'message' => "Accès refusé."
                 ], 403);
             }
 
             $statFournisseurs = [
-                'total_fournisseurs'=>Fournisseurs::count(),
-                'total_fournisseurs_actifs'=>Fournisseurs::Actif()->count(),
-                'total_commande'=>Achats::Commande()->whereMonth('created_at', now()->month)->count()
+                'total_fournisseurs' => Fournisseurs::count(),
+                'total_fournisseurs_actifs' => Fournisseurs::Actif()->count(),
+                'total_commande' => Achats::Commande()->whereMonth('created_at', now()->month)->count()
             ];
 
             return response()->json([
-                'success'=> true,
-                'data'=> $statFournisseurs,
-                'message'=> "succès"
+                'success' => true,
+                'data' => $statFournisseurs,
+                'message' => "succès"
             ]);
-        }catch(\Exception $e){
+        } catch (\Exception $e) {
             return response()->json([
-                'success'=>false,
+                'success' => false,
                 'message' => 'Erreur survenue lors de la récupération des statistiques',
-                'errors'=> $e->getMessage()
+                'errors' => $e->getMessage()
             ], 500);
         }
     }

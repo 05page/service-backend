@@ -30,7 +30,7 @@ class AchatsController extends Controller
         }
         return true;
     }
-    
+
     public function createAchat(Request $request)
     {
         try {
@@ -111,7 +111,7 @@ class AchatsController extends Controller
                 'prix_total',
                 'numero_achat',
                 'date_commande',
-                'date_livraison_reelle',
+                'date_livraison',
                 // 'mode_paiement',
                 'statut',
                 'created_by',
@@ -156,12 +156,12 @@ class AchatsController extends Controller
     {
         try {
 
-        if(!$this->verifierPermission()){
-            return response()->json([
+            if (!$this->verifierPermission()) {
+                return response()->json([
                     'success' => false,
                     'message' => "Accès réfusé.Seul un employé ayant une permission peut effectuer cette tache",
-            ], 403);
-        }
+                ], 403);
+            }
 
             // Récupérer les achats payés qui ne sont pas encore attribués à un stock
             $achats = Achats::with(['fournisseur:id,nom_fournisseurs'])
@@ -384,10 +384,18 @@ class AchatsController extends Controller
             DB::beginTransaction();
             $deleteAchat = Achats::findOrFail($id);
 
+            $deleteAchat->stocks()->delete();
+            if ($deleteAchat->stocks()->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de supprimer cet achat car il est utilisé dans le stock.'
+                ], 400);
+            }
+
             $deleteAchat->delete();
             DB::commit();
 
-            return response()->json([ 
+            return response()->json([
                 'success' => true,
                 'message' => 'Achat supprimée avec succès'
             ]);
@@ -458,7 +466,7 @@ class AchatsController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur survenue lors de la récupération des statistiques',
-                'errors'=> $e->getMessage()
+                'errors' => $e->getMessage()
             ], 500);
         }
     }

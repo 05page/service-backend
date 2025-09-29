@@ -9,7 +9,7 @@ class Permissions extends Model
 {
     //
     protected $fillable = [
-        'employe_id',
+        'user_id',
         'created_by',
         'description',
         'module',
@@ -35,7 +35,7 @@ class Permissions extends Model
 
     public function employe(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'employe_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function scopeActive($query){

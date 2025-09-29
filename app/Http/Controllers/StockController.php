@@ -32,11 +32,10 @@ class StockController extends Controller
 
             $validate = $request->validate([
                 'achat_id' => 'required|exists:achats,id',
-                'nom_produit' => 'required|string|max:300',
-                // 'quantite' => 'required|integer|min:1',
+                'quantite' => 'required|integer|min:1',
                 'quantite_min' => 'required|integer|min:1',
                 'prix_vente' => 'required|numeric|min:0',
-                'description' => 'sometimes|required|max:300',
+                'description' => 'nullable|string|max:300',
             ]);
 
             //On récupère
@@ -55,13 +54,10 @@ class StockController extends Controller
 
             DB::beginTransaction();
             $stock = Stock::create([
-                'achat_id' => $achat->id,
-                'nom_produit' => $validate['nom_produit'],
+                'achat_id' => $validate['achat_id'], 
                 'categorie' => $validate['categorie'] ?? null,
-                'fournisseur_id' => $achat->fournisseur_id,
-                'quantite' => $achat->quantite,
+                'quantite' => $validate['quantite'],
                 'quantite_min' => $validate['quantite_min'],
-                'prix_achat' => $achat->prix_unitaire,
                 'prix_vente' => $validate['prix_vente'],
                 'description' => $validate['description'] ?? null,
                 'actif' => true,
@@ -106,12 +102,13 @@ class StockController extends Controller
                 }
             }
 
-            $query = Stock::with(['creePar:id,fullname,email,role', 'fournisseur:id,nom_fournisseurs'])->select(
+            $query = Stock::with(['creePar:id,fullname,email,role'])->withAchat()->select(
                 'id',
-                'fournisseur_id',
-                'nom_produit',
+                'achat_id',
+                'code_produit',
                 'quantite',
                 'quantite_min',
+                'prix_vente',
                 'statut',
                 'actif',
                 'created_by',

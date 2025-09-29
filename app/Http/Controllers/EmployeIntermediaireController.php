@@ -50,6 +50,7 @@ class EmployeIntermediaireController extends Controller
                 'telephone' => $validateUser['telephone'],
                 'adresse' => $validateUser['adresse'],
                 'role' => User::ROLE_EMPLOYE,
+                'active'=> false,
                 'password' => $validateUser['password'] ?? null,
                 'created_by' => Auth::id(),
             ]);
@@ -65,7 +66,7 @@ class EmployeIntermediaireController extends Controller
                     'employe_intermediaire' => $employeIntermediaire->load('createdBy'),
                     'code_activation' => $employeIntermediaire->code_activation, // Pour les tests
                 ],
-                'message' => 'Employé/Intermédiaire créé avec succès. Un email d\'activation a été envoyé.'
+                'message' => 'Employé créé avec succès. Un email d\'activation a été envoyé.'
             ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollBack();
@@ -118,7 +119,7 @@ class EmployeIntermediaireController extends Controller
 
             // Activer le compte (met à jour activated_at et supprime le code)
             // $employeIntermediaire->activate_code();
-
+            $employeIntermediaire->active = true;    
             // Recharger les données depuis la base pour avoir les infos à jour
             $employeIntermediaire->refresh();
 

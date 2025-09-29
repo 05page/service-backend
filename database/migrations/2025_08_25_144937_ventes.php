@@ -21,7 +21,7 @@ return new class extends Migration
             $table->string('adresse')->nullable();
             $table->integer('quantite')->nullable();
             $table->decimal('prix_total', 10,2);
-            $table->enum('statut', ['en_attente', 'payé', 'annulé']);
+            $table->enum('statut', ['en attente', 'paye', 'annule']);
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
         });

@@ -17,6 +17,7 @@ class Ventes extends Model
         'reference',
         'nom_client',
         'numero', // Numéro téléphone client
+        'adresse',
         'quantite',
         'prix_total',
         'statut',
@@ -29,8 +30,8 @@ class Ventes extends Model
     ];
 
     // Constantes pour les statuts
-    const STATUT_EN_ATTENTE = 'en_attente';
-    const STATUT_PAYE = 'payé';
+    const STATUT_EN_ATTENTE = 'en attente';
+    const STATUT_PAYE = 'paye';
     const STATUT_ANNULE = 'annulé';
 
     public function stock(): BelongsTo

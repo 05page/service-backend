@@ -16,7 +16,7 @@ class Achats extends Model
         'prix_total',
         'numero_achat',
         'date_commande',
-        'date_livraison_reelle',
+        'date_livraison',
         'statut',
         // 'mode_paiement',
         'description',
@@ -24,7 +24,7 @@ class Achats extends Model
     ];
 
     protected $casts = [
-        'quantite'=> 'integer'
+        'quantite' => 'integer'
     ];
 
     const ACHAT_COMMANDE = "commande";
@@ -55,6 +55,11 @@ class Achats extends Model
         return $this->hasOne(Stock::class, 'achat_id');
     }
 
+    public function stocks()
+    {
+        return $this->hasMany(Stock::class, 'achat_id');
+    }
+
     /** Filtrer les achats */
 
     public function scopeCommande($query)
@@ -68,7 +73,7 @@ class Achats extends Model
     }
 
     public function scopePaye($query)
-    {   
+    {
         return $query->where('statut', self::ACHAT_PAYE);
     }
 
@@ -78,12 +83,13 @@ class Achats extends Model
     }
 
     /**Methode helpers */
-    public function isReçu():bool
+    public function isReçu(): bool
     {
         return $this->statut === self::ACHAT_REÇU;
     }
 
-    public function isCommande(): bool{
+    public function isCommande(): bool
+    {
         return $this->statut === self::ACHAT_COMMANDE;
     }
 
@@ -92,14 +98,15 @@ class Achats extends Model
         return $this->statut === self::ACHAT_PAYE;
     }
 
-    public function isAnnule(): bool{
+    public function isAnnule(): bool
+    {
         return $this->statut === self::ACHAT_ANNULE;
     }
 
     /**Calculons le prix unitaire */
     public function calculePrixTotal(): float
     {
-        if(!$this->quantite || $this->quantite <= 0){
+        if (!$this->quantite || $this->quantite <= 0) {
             return 0;
         }
 
@@ -116,8 +123,9 @@ class Achats extends Model
     // }
 
     /**Marquer comme confirmer */
-    public function marqueReçu():bool{
-        if(!$this->isCommande()){
+    public function marqueReçu(): bool
+    {
+        if (!$this->isCommande()) {
             return false;
         }
 
@@ -125,9 +133,10 @@ class Achats extends Model
         return $this->save();
     }
 
-        /**Marquer comme payé */
-    public function marquePaye():bool{
-        if(!$this->isCommande()){
+    /**Marquer comme payé */
+    public function marquePaye(): bool
+    {
+        if (!$this->isCommande()) {
             return false;
         }
 
@@ -135,9 +144,10 @@ class Achats extends Model
         return $this->save();
     }
 
-        /**Marquer comme annulé */
-    public function marqueAnnule():bool{
-        if(!$this->isCommande()){
+    /**Marquer comme annulé */
+    public function marqueAnnule(): bool
+    {
+        if (!$this->isCommande()) {
             return false;
         }
 
@@ -161,20 +171,21 @@ class Achats extends Model
         });
     }
 
-    public function getResume(): array{
+    public function getResume(): array
+    {
         return [
-            'id'=> $this->id,
-            'fournisseur_id'=> $this->fournisseur_id,
-            'nom_service'=> $this->nom_service,
-            'quantite'=> $this->quantite,
-            'prix_unitaire'=>$this->prix_unitaire,
-            'prix_total'=>$this->prix_total,
-            'numero_achat'=>$this->numero_achat,
-            'date_commande'=>$this->date_commande,
-            'date_livraison_reelle'=> $this->date_livraison_reelle,
-            'statut'=>$this->statut,
-            'mode_paiement'=>$this->mode_paiement,
-            'description'=>$this->description,
+            'id' => $this->id,
+            'fournisseur_id' => $this->fournisseur_id,
+            'nom_service' => $this->nom_service,
+            'quantite' => $this->quantite,
+            'prix_unitaire' => $this->prix_unitaire,
+            'prix_total' => $this->prix_total,
+            'numero_achat' => $this->numero_achat,
+            'date_commande' => $this->date_commande,
+            'date_livraison' => $this->date_livraison,
+            'statut' => $this->statut,
+            'mode_paiement' => $this->mode_paiement,
+            'description' => $this->description,
             'created_at' => $this->created_at?->format('d/m/Y H:i')
         ];
     }

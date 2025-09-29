@@ -12,15 +12,12 @@ class Stock extends Model
     //
     protected $table = "stock";
     protected $fillable = [
-        'nom_produit',
-        'code_prodnumero_uit',
-        'numero_achat',
         'achat_id',
+        'code_produit',
+        'numero_achat',
         'categorie',
-        'fournisseur_id',
-        'quantite', // Note: Corrigé la faute de frappe de la migration
+        'quantite',
         'quantite_min',
-        'prix_achat',
         'prix_vente',
         'description',
         'statut',
@@ -49,10 +46,10 @@ class Stock extends Model
     /**
      * Relation avec le fournisseur de ce produit
      */
-    public function fournisseur(): BelongsTo
-    {
-        return $this->belongsTo(Fournisseurs::class, 'fournisseur_id');
-    }
+    // public function fournisseur(): BelongsTo
+    // {
+    //     return $this->belongsTo(Fournisseurs::class, 'fournisseur_id');
+    // }
 
     /** fonction pour filtrer les produits */
 
@@ -61,9 +58,10 @@ class Stock extends Model
         return $query->where('actif', true);
     }
 
-    public function scopeParFournisseur($query, $fournisseurId)
+     // Scope pour charger automatiquement l'achat
+    public function scopeWithAchat($query)
     {
-        return $query->where('fournisseur_id', $fournisseurId);
+        return $query->with('achat:id,nom_service');
     }
 
     public function scopeStockFaible($query)
@@ -157,20 +155,16 @@ class Stock extends Model
         }
 
         if ($this->isFaible()) {
-            return 'alert';
+            return 'alerte';
         }
 
         return 'disponible';
     }
 
-    public function updateStatut(): bool{
+    public function updateStatut(): bool
+    {
         $this->statut = $this->getStatutStock();
         return $this->save();
-    }
-
-    public function achats(): HasMany
-    {
-        return $this->hasMany(Achats::class, 'stock_id');
     }
 
     public function achat()
@@ -197,18 +191,20 @@ class Stock extends Model
     {
         return [
             'id' => $this->id,
-            'nom_produit' => $this->nom_produit,
             'code_produit' => $this->code_produit,
             'categorie' => $this->categorie,
-            'fournisseur' => $this->fournisseur?->nom_fournisseurs,
             'quantite' => $this->quantite,
-            'quantite_min' => $this->quantie_min,
-            'prix_achat' => $this->prix_achat,
+            'quantite_min' => $this->quantite_min,
             'prix_vente' => $this->prix_vente,
             'description' => $this->description,
             'statut' => $this->getStatutStock(),
-            'cree_par' => $this->creePar?->fullname,
             'actif' => $this->actif,
+
+            // Relations
+            'achat' => $this->achat?->nom_service, // grâce au belongsTo
+            'cree_par' => $this->creePar?->fullname,
+
+            // Dates
             'created_at' => $this->created_at?->format('d/m/Y H:i')
         ];
     }

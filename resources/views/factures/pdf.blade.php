@@ -296,7 +296,8 @@
             <table class="articles-table">
                 <thead>
                     <tr>
-                        <th style="width: 40%;">Description</th>
+                        <th style="width: 30%;">Description</th>
+                        <th style="width: 20%;">Code produit</th>
                         <th style="width: 15%;" class="text-center">Quantité</th>
                         <th style="width: 20%;" class="text-right">Prix unitaire HT</th>
                         <th style="width: 25%;" class="text-right">Total HT</th>
@@ -307,13 +308,15 @@
                     <tr>
                         <td>
                             <strong>{{ $article['description'] }}</strong>
+                        </td>
+                        <td>
                             @if(isset($article['code']) && !empty($article['code']))
-                                <br><small>Code: {{ $article['code'] }}</small>
+                                <strong>Code: {{ $article['code'] }}</strong>
                             @endif
                         </td>
                         <td class="text-center">{{ $article['quantite'] }}</td>
-                        <td class="text-right">{{ number_format($article['prix_unitaire'], 2, ',', ' ') }} €</td>
-                        <td class="text-right prix-amount">{{ number_format($article['total'], 2, ',', ' ') }} €</td>
+                        <td class="text-right">{{ number_format($article['prix_unitaire'], 2, ',', ' ') }} Fcfa</td>
+                        <td class="text-right prix-amount">{{ number_format($article['total'], 2, ',', ' ') }} Fcfa</td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -326,16 +329,16 @@
                 <table>
                     <tr>
                         <td class="total-label">Sous-total HT:</td>
-                        <td class="text-right">{{ number_format($totaux['sous_total'], 2, ',', ' ') }} €</td>
+                        <td class="text-right">{{ number_format($totaux['sous_total'], 2, ',', ' ') }} Fcfa</td>
                     </tr>
                     {{-- Si vous avez de la TVA à ajouter plus tard --}}
                     {{-- <tr>
                         <td class="total-label">TVA (20%):</td>
-                        <td class="text-right">{{ number_format($totaux['tva'] ?? 0, 2, ',', ' ') }} €</td>
+                        <td class="text-right">{{ number_format($totaux['tva'] ?? 0, 2, ',', ' ') }} Fcfa</td>
                     </tr> --}}
                     <tr class="total-final">
                         <td><strong>TOTAL:</strong></td>
-                        <td class="text-right"><strong>{{ number_format($totaux['montant_total'], 2, ',', ' ') }} €</strong></td>
+                        <td class="text-right"><strong>{{ number_format($totaux['montant_total'], 2, ',', ' ') }} Fcfa</strong></td>
                     </tr>
                 </table>
             </div>

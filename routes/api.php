@@ -34,6 +34,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/password/change', [PasswordController::class, 'changePassword']);
 
     Route::get('/dashboard', [StatsController::class, 'statsDashboard']);
+    Route::get('/allStats', [StatsController::class, 'allStats']);
 
     Route::prefix('admin')->group(function () {
         Route::post('/createUser', [EmployeIntermediaireController::class, 'createUser']);
@@ -58,7 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('desactive/{id}', [FournisseurController::class, 'desactiverFournisseur']);
         Route::post('reactive/{id}', [FournisseurController::class, 'reactiverFournisseur']);
         Route::get('{id}', [FournisseurController::class, 'selectFournisseur']);         // Voir détail (view_suppliers)
-        Route::put('{id}', [FournisseurController::class, 'update']);       // Modifier (edit_suppliers)
+        Route::put('{id}', [FournisseurController::class, 'updateFournisseur']);       // Modifier (edit_suppliers)
         Route::delete('{id}', [FournisseurController::class, 'destroy']);   // Supprimer (delete_suppliers)
     });
 
@@ -78,6 +79,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [VentesController::class, 'createVente']);
         Route::get('/', [VentesController::class, 'showVentes']);         // Voir détail (view_suppliers)
         Route::get('/allStats', [StatsController::class, 'allStats']);
+        Route::get('/client', [VentesController::class, 'client']);
         Route::get('/myStats', [VentesController::class, 'myStats']);
         Route::get('{id}', [VentesController::class, 'selectVente']);
         Route::put('{id}', [VentesController::class, 'update']);       // Modifier (edit_suppliers)
@@ -94,11 +96,10 @@ Route::middleware('auth:sanctum')->group(function () {
         // Route::get('/myStats/{userdId}', [StatsController::class, 'myStats']);
         Route::get('{id}', [AchatsController::class, 'selectAchat']);
         Route::put('{id}', [AchatsController::class, 'updateAchat']);       // Modifier (edit_suppliers)
-        Route::post('/validePaye/{id}', [AchatsController::class, 'marquePaye']); 
-        Route::post('/ConfirmeAchat/{id}', [AchatsController::class, 'marqueConfirme']);
+        // Route::post('/validePaye/{id}', [AchatsController::class, 'marquePaye']); 
+        // Route::post('/ConfirmeAchat/{id}', [AchatsController::class, 'marqueConfirme']);
         Route::post('/annuler/{id}', [AchatsController::class, 'marqueAnnule']);       // Modifier (edit_suppliers)
         Route::delete('{id}', [AchatsController::class, 'deleteAchat']);   // Supprimer (delete_suppliers)
-        // Route::delete('/', [VentesController::class, 'deleteAll']);   // Supprimer (delete_suppliers)
     });
 
     Route::prefix('factures')->group(function () {
@@ -110,4 +111,5 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [FacturesController::class, 'index']);
         Route::get('/{id}', [FacturesController::class, 'show']);
     });
+
 });
