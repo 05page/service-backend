@@ -47,7 +47,7 @@ class Permissions extends Model
     }
 
     public function scopeEmploye($query, $employeId){
-        return $query->where('employe_id', $employeId);
+        return $query->where('user_id', $employeId);
     }
 
         public static function getModules()
@@ -83,7 +83,7 @@ class Permissions extends Model
             'id' => $this->id,
             'description' => $this->description,
             'module' => self::getModules()[$this->module] ?? $this->module,
-            'employe' => $this->employe?->fullname,
+            'employe' => $this->user?->fullname,
             'created_by' => $this->createdBy?->fullname,
             'active' => $this->active,
             'created_at' => $this->created_at->format('d/m/Y H:i')

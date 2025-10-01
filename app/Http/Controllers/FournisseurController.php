@@ -89,13 +89,6 @@ class FournisseurController extends Controller
     public function showFournisseur(): JsonResponse
     {
         try {
-            if (Auth::user()->role !== User::ROLE_ADMIN) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès refusé. Seuls les admins peuvent créer des employés/intermédiaires.'
-                ], 403);
-            }
-
             $fournisseurs = Fournisseurs::with([
                 'creePar:id,fullname,email'
             ])->select(

@@ -50,7 +50,7 @@ class EmployeIntermediaireController extends Controller
                 'telephone' => $validateUser['telephone'],
                 'adresse' => $validateUser['adresse'],
                 'role' => User::ROLE_EMPLOYE,
-                'active'=> false,
+                'active' => false,
                 'password' => $validateUser['password'] ?? null,
                 'created_by' => Auth::id(),
             ]);
@@ -119,16 +119,14 @@ class EmployeIntermediaireController extends Controller
 
             // Activer le compte (met à jour activated_at et supprime le code)
             // $employeIntermediaire->activate_code();
-            $employeIntermediaire->active = true;    
+            $employeIntermediaire->active = true;
             // Recharger les données depuis la base pour avoir les infos à jour
             $employeIntermediaire->refresh();
 
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'employe_intermediaire' => $employeIntermediaire,
-                ],
-                'message' => 'Compte activé avec succès ! Vous pouvez maintenant vous connecter au dashboard.'
+                'user_id' => $employeIntermediaire->id, // on renvoie bien l'id
+                'message' => 'Compte activé avec succès ! Vous pouvez maintenant définir un mot de passe.'
             ], 200);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -332,69 +330,29 @@ class EmployeIntermediaireController extends Controller
         }
     }
 
-    public function activateUser($id): JsonResponse
+    public function toggleUserStatus($id, Request $request)
     {
         try {
-            if (Auth::user()->role !== User::ROLE_ADMIN) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Accès réfusé. Seul un admin peut accéder à cet espace"
-                ], 403);
-            }
-
+            // On vérifie que l'employé existe
             $employe = User::findOrFail($id);
-            if ($employe->active === true) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Le compte de cet utilisateur est déja activé"
-                ], 400);
-            }
-            $employe->active = true;
 
+            // On récupère la valeur de "active" envoyée par le frontend
+            $newStatus = $request->input('active');
+
+            // On s'assure que c'est bien un booléen
+            $employe->active = filter_var($newStatus, FILTER_VALIDATE_BOOLEAN);
             $employe->save();
 
             return response()->json([
                 'success' => true,
-                'message' => "Le compte de cet employe activé avec succès"
-            ]);
+                'message' => 'Statut de l\'employé mis à jour avec succès',
+                'data' => $employe
+            ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => "Erreur lors de l'activation de ce compte",
-                'errors'=> $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function desActivateUser($id): JsonResponse
-    {
-        try {
-            if (Auth::user()->role !== User::ROLE_ADMIN) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Accès réfusé. Seul un admin peut accéder à cet espace"
-                ], 403);
-            }
-
-            $employe = User::findOrFail($id);
-            if ($employe->active === false) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Le compte de cet utilisateur est déja désactivé"
-                ], 400);
-            }
-            $employe->active = false;
-            $employe->save();
-
-            return response()->json([
-                'success' => true,
-                'message' => "Le compte de cet employé a été désactivé avec succès"
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => "Erreur lors de la désactivation de ce compte",
-                'errors'=> $e->getMessage()
+                'message' => 'Erreur lors du changement de statut',
+                'error'   => $e->getMessage()
             ], 500);
         }
     }

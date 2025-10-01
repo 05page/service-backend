@@ -1,6 +1,7 @@
 {{-- resources/views/factures/pdf.blade.php --}}
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -113,7 +114,8 @@
             font-size: 11px;
         }
 
-        .client-name, .fournisseur-name {
+        .client-name,
+        .fournisseur-name {
             font-size: 13px;
             font-weight: bold;
             color: #1f2937;
@@ -230,9 +232,10 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
-        
+
         {{-- EN-TÊTE --}}
         <div class="header clearfix">
             <div class="facture-title">
@@ -240,7 +243,7 @@
                 <div class="facture-numero">N° {{ $facture->numero_facture }}</div>
                 <div class="facture-date">Date: {{ $date_generation }}</div>
             </div>
-            
+
             <div class="entreprise-info">
                 <h2>{{ $entreprise['nom'] }}</h2>
                 <p>{{ $entreprise['adresse'] }}</p>
@@ -254,40 +257,41 @@
         {{-- SECTION CLIENT/FOURNISSEUR --}}
         <div class="billing-section clearfix">
             @if($type_facture === 'vente')
-                {{-- Facture de VENTE --}}
-                <div class="billing-info billing-left">
-                    <h3>FACTURÉ À:</h3>
-                    <div class="client-name">{{ $client['nom'] }}</div>
-                    @if(!empty($client['telephone']))
-                        <p>Tél: {{ $client['telephone'] }}</p>
-                    @endif
-                </div>
-                
-                @if(isset($intermediaire))
-                <div class="billing-info">
-                    <h3 class="intermediaire">INTERMÉDIAIRE:</h3>
-                    <div class="client-name">{{ $intermediaire['nom'] ?? 'N/A' }}</div>
-                    @if(isset($intermediaire['commission']))
-                        <p class="commission">Commission: {{ $intermediaire['commission'] }}</p>
-                    @endif
-                </div>
+            {{-- Facture de VENTE --}}
+            <div class="billing-info billing-left">
+                <h3>FACTURÉ À:</h3>
+                <div class="client-name">{{ $client['nom'] }}</div>
+                @if(!empty($client['telephone']))
+                <p>Tél: {{ $client['telephone'] }}</p>
                 @endif
-                
+                <p>Adresse: {{ $client['adresse'] }}</p>
+            </div>
+
+            @if(isset($intermediaire))
+            <div class="billing-info">
+                <h3 class="intermediaire">INTERMÉDIAIRE:</h3>
+                <div class="client-name">{{ $intermediaire['nom'] ?? 'N/A' }}</div>
+                @if(isset($intermediaire['commission']))
+                <p class="commission">Commission: {{ $intermediaire['commission'] }}</p>
+                @endif
+            </div>
+            @endif
+
             @else
-                {{-- Facture d'ACHAT --}}
-                <div class="billing-info billing-left">
-                    <h3>FACTURÉ PAR:</h3>
-                    <div class="fournisseur-name">{{ $fournisseur['nom'] }}</div>
-                    @if(!empty($fournisseur['email']))
-                        <p>Email: {{ $fournisseur['email'] }}</p>
-                    @endif
-                    @if(!empty($fournisseur['telephone']))
-                        <p>Tél: {{ $fournisseur['telephone'] }}</p>
-                    @endif
-                    @if(!empty($fournisseur['adresse']))
-                        <p>{{ $fournisseur['adresse'] }}</p>
-                    @endif
-                </div>
+            {{-- Facture d'ACHAT --}}
+            <div class="billing-info billing-left">
+                <h3>FACTURÉ PAR:</h3>
+                <div class="fournisseur-name">{{ $fournisseur['nom'] }}</div>
+                @if(!empty($fournisseur['email']))
+                <p>Email: {{ $fournisseur['email'] }}</p>
+                @endif
+                @if(!empty($fournisseur['telephone']))
+                <p>Tél: {{ $fournisseur['telephone'] }}</p>
+                @endif
+                @if(!empty($fournisseur['adresse']))
+                <p>Adresse: {{ $fournisseur['adresse'] }}</p>
+                @endif
+            </div>
             @endif
         </div>
 
@@ -297,12 +301,17 @@
                 <thead>
                     <tr>
                         <th style="width: 30%;">Description</th>
+                        @if($type_facture === 'vente')
                         <th style="width: 20%;">Code produit</th>
+                        @else
+                        <th style="width: 20%;">N° Achat</th>
+                        @endif
                         <th style="width: 15%;" class="text-center">Quantité</th>
                         <th style="width: 20%;" class="text-right">Prix unitaire HT</th>
                         <th style="width: 25%;" class="text-right">Total HT</th>
                     </tr>
                 </thead>
+
                 <tbody>
                     @foreach($articles as $article)
                     <tr>
@@ -310,10 +319,17 @@
                             <strong>{{ $article['description'] }}</strong>
                         </td>
                         <td>
+                            @if($type_facture === 'vente')
                             @if(isset($article['code']) && !empty($article['code']))
-                                <strong>Code: {{ $article['code'] }}</strong>
+                            <strong>{{ $article['code'] }}</strong>
+                            @endif
+                            @else
+                            @if(isset($article['numero_achat']) && !empty($article['numero_achat']))
+                            <strong>{{ $article['numero_achat'] }}</strong>
+                            @endif
                             @endif
                         </td>
+
                         <td class="text-center">{{ $article['quantite'] }}</td>
                         <td class="text-right">{{ number_format($article['prix_unitaire'], 2, ',', ' ') }} Fcfa</td>
                         <td class="text-right prix-amount">{{ number_format($article['total'], 2, ',', ' ') }} Fcfa</td>
@@ -348,12 +364,13 @@
         <div class="footer">
             <p>Facture générée automatiquement le {{ $date_generation }}</p>
             @if($type_facture === 'vente')
-                <p>{{ $entreprise['nom'] }} - Merci de votre confiance</p>
+            <p>{{ $entreprise['nom'] }} - Merci de votre confiance</p>
             @else
-                <p>Facture d'achat - {{ $entreprise['nom'] }}</p>
+            <p>Facture d'achat - {{ $entreprise['nom'] }}</p>
             @endif
         </div>
-        
+
     </div>
 </body>
+
 </html>

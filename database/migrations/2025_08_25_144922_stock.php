@@ -14,13 +14,11 @@ return new class extends Migration
         //
         Schema::create('stock', function (Blueprint $table) {
             $table->id();
-            $table->text('nom_produit');
+            $table->foreignId('achat_id')->constrained('fournisseurs')->onDelete('cascade');
             $table->string('code_produit')->unique();
             $table->string('categorie')->nullable();
-            $table->foreignId('fournisseur_id')->constrained('fournisseurs')->onDelete('cascade');
-            $table->integer('quantitié')->default(0);
+            $table->integer('quantite')->default(0);
             $table->integer('quantite_min')->default(0);
-            $table->integer('prix_achat');
             $table->integer('prix_vente');
             $table->string('description')->nullable();
             $table->enum('statut', ['disponible', 'alerte', 'rupture']);

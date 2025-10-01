@@ -96,13 +96,19 @@ class AchatsController extends Controller
     public function showAchats(Request $request): JsonResponse
     {
         try {
+            $user = Auth::user();
+
             if (!$this->verifierPermission()) {
                 return response()->json([
                     'success' => false,
-                    'message' => "Accès refusé. Vous n'avez pas l'accès pour cette action"
+                    'message' => "Accès refusé. Vous n'avez pas l'accès pour ajouter un achat"
                 ], 403);
             }
-            $query = Achats::with(['creePar:id,fullname,email,role', 'fournisseur:id,nom_fournisseurs'])->select(
+
+            $query = Achats::with([
+                'creePar:id,fullname,email,role',
+                'fournisseur:id,nom_fournisseurs'
+            ])->select(
                 'id',
                 'fournisseur_id',
                 'nom_service',
@@ -112,45 +118,83 @@ class AchatsController extends Controller
                 'numero_achat',
                 'date_commande',
                 'date_livraison',
-                // 'mode_paiement',
                 'statut',
                 'created_by',
                 'created_at'
             );
 
+            // 📌 Filtrage par statut (optionnel)
             if ($request->filled('statut')) {
                 switch ($request->statut) {
                     case 'commande':
-                        $query->commande(); // scopeCommande
+                        $query->commande();
                         break;
                     case 'reçu':
-                        $query->reçu(); // scopeReçu
+                        $query->reçu();
                         break;
                     case 'paye':
-                        $query->paye(); // scopePaye
+                        $query->paye();
                         break;
-
                     case 'annule':
                         $query->annule();
                         break;
                 }
             }
 
-            $getAchats = $query->get();
+            $getAchats = $query->orderBy('created_at', 'desc')->get();
 
             return response()->json([
                 'success' => true,
-                'message' => "Les achats ont été récupéré avec succès",
+                'message' => "Les achats ont été récupérés avec succès",
                 'data' => $getAchats
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => "Erreur est survenue lors de la récupérarion des achats",
+                'message' => "Erreur survenue lors de la récupération des achats",
                 'errors' => $e->getMessage()
             ], 500);
         }
     }
+
+
+    // public function selectAchat($id): JsonResponse
+    // {
+    //     try {
+    //         if (!$this->verifierPermission()) {
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => "Accès refusé. Vous n'avez pas l'accès pour cette action"
+    //             ], 403);
+    //         }
+    //         $getAchat = Achats::with(['creePar:id,fullname,email,role', 'fournisseur:id,nom_fournisseurs'])->select(
+    //             'fournisseur_id',
+    //             'nom_service',
+    //             'quantite',
+    //             'prix_unitaire',
+    //             'prix_total',
+    //             'numero_achat',
+    //             'date_commande',
+    //             'date_livraison',
+    //             // 'mode_paiement',
+    //             'statut',
+    //             'created_by',
+    //             'created_at'
+    //         )->findOrFail($id);
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'message' => "L'achat a été récupéré avec succès",
+    //             'data' => $getAchat
+    //         ], 200);
+    //     } catch (\Exception $e) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => "Erreur survenue lors de la récupérarion cet achat",
+    //             'errors' => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
 
     public function achatsDisponibles(): JsonResponse
     {
@@ -179,44 +223,6 @@ class AchatsController extends Controller
                 'success' => false,
                 'message' => "Erreur survenue lors de la récupération des achats disponibles",
                 'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function selectAchat($id): JsonResponse
-    {
-        try {
-            if (!$this->verifierPermission()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Accès refusé. Vous n'avez pas l'accès pour cette action"
-                ], 403);
-            }
-            $getAchat = Achats::with(['creePar:id,fullname,email,role', 'fournisseur:id,nom_fournisseurs'])->select(
-                'fournisseur_id',
-                'nom_service',
-                'quantite',
-                'prix_unitaire',
-                'prix_total',
-                'numero_achat',
-                'date_commande',
-                'date_livraison',
-                // 'mode_paiement',
-                'statut',
-                'created_by',
-                'created_at'
-            )->findOrFail($id);
-
-            return response()->json([
-                'success' => true,
-                'message' => "L'achat a été récupéré avec succès",
-                'data' => $getAchat
-            ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => "Erreur survenue lors de la récupérarion cet achat",
-                'errors' => $e->getMessage()
             ], 500);
         }
     }
@@ -445,19 +451,23 @@ class AchatsController extends Controller
     public function statsAchat(): JsonResponse
     {
         try {
-            if (Auth::user()->role !== User::ROLE_ADMIN) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès refusé. Seul un admin peut supprimer toutes les ventes.'
-                ], 403);
-            }
+
+            $userId = Auth::id(); // ✅ Récupère l'utilisateur connecté
 
             $statAchat = [
-                'total_commande' => Achats::Commande()->count(),
-                'total_confirme' => Achats::Reçu()->count(),
-                'montant_total' => Achats::Reçu()->sum('prix_total')
+                'total_achats'      => Achats::where('created_by', $userId)->count(),
+                'total_commande'    => Achats::where('created_by', $userId)->commande()->count(),
+                'total_confirme'    => Achats::where('created_by', $userId)->reçu()->count(),
+                'total_achats_recu' => Achats::where('created_by', $userId)
+                    ->where('statut', Achats::ACHAT_REÇU)
+                    ->count(),
+                'montant_total'     => Achats::where('created_by', $userId)
+                    ->whereIn('statut', [
+                        Achats::ACHAT_REÇU,
+                        Achats::ACHAT_PAYE
+                    ])
+                    ->sum('prix_total'),
             ];
-
             return response()->json([
                 'success' => true,
                 'data' => $statAchat,

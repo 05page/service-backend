@@ -17,58 +17,52 @@ use Illuminate\Support\Facades\DB;
 
 class StatsController extends Controller
 {
-    //
-    // private function verifierPermissions()
-    // {
-    //     $user = Auth::user();
-    //     if ($user->role !== User::ROLE_ADMIN) {
-    //         /** @var User $user */
-    //         $hasPermission = $user->permissions()
-    //             ->where('module', Permissions::MODULE_VENTES)
-    //             ->where('active', true)->exists();
-    //         if (!$hasPermission) {
-    //             return false;
-    //         }
-    //     }
-    //     return true;
-    // }
 
     public function allStats(): JsonResponse
     {
         try {
             $user = Auth::user();
-            if ($user->role !== User::ROLE_ADMIN) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Seul un administrateur à l'accès"
-                ], 403);
+
+            if ($user->role === User::ROLE_ADMIN) {
+                // ✅ Stats globales pour l'admin
+                $allStats = [
+                    // Ventes
+                    'total_ventes' => Ventes::Paye()->count(), // ventes payées
+                    'ventes_en_attente' => Ventes::EnAttente()->count(),
+                    'ventes_annule' => Ventes::Annule()->count(),
+                    'chiffres_affaire_total' => Ventes::Paye()->sum('prix_total'),
+                    'chiffres_affaire_mois' => Ventes::Paye()
+                        ->whereMonth('created_at', Carbon::now()->month)
+                        ->whereYear('created_at', Carbon::now()->year)
+                        ->sum('prix_total'),
+                    'chiffre_affaires_jour' => Ventes::Paye()->whereDate('created_at', today())->sum('prix_total'),
+
+                    // Clients
+                    'total_client' => Ventes::select('nom_client')->distinct()->count(),
+
+                    // Achats
+                    'total_achats' => Achats::count(),
+                    'total_achat_commande' => Achats::where('statut', Achats::ACHAT_COMMANDE)->count(),
+                    'total_achats_recu' => Achats::where('statut', Achats::ACHAT_REÇU)->count(),
+                    'total_prix_achats' => Achats::Reçu()->sum('prix_total'),
+
+                    // Stock
+                    'total_produits_stock' => Stock::where('actif', true)->count(),
+                    'total_stock_disponible' => Stock::StockDisponible()->count(),
+                    'total_stock_faible' => Stock::StockFaible()->count(),
+                    'total_valeur_stock' => Stock::StockDisponible()->sum('prix_vente'),
+                ];
+            } else {
+                // ✅ Stats limitées pour employé
+                $allStats = [
+                    'total_ventes' => Ventes::Paye()->where('created_by', $user->id)->count(),
+                    'ventes_en_attente' => Ventes::EnAttente()->where('created_by', $user->id)->count(),
+                    'ventes_annule' => Ventes::Annule()->where('created_by', $user->id)->count(),
+                    'chiffres_affaire_total' => Ventes::Paye()->where('created_by', $user->id)->sum('prix_total'),
+                    'total_client' => Ventes::where('created_by', $user->id)->select('nom_client')->distinct()->count(),
+                ];
             }
 
-            $allStats = [
-                'total_ventes' => Ventes::count(),
-                'total_client' => Ventes::distinct("nom_client")->count("nom_client"),
-                'ventes_en_attente' => Ventes::EnAttente()->count(),
-                'ventes_paye' => Ventes::Paye()->count(),
-                'ventes_annule' => Ventes::Annule()->count(),
-                'chiffres_affaire_total' => Ventes::Paye()->sum('prix_total'),
-                'chiffres_affaire_mois' => Ventes::Paye()
-                    ->whereMonth('created_at', Carbon::now('UTC')->month)
-                    ->whereYear('created_at', Carbon::now('UTC')->year)
-                    ->sum('prix_total'),
-                'chiffre_affaires_jour' => Ventes::Paye()->whereDate('created_at', today())->sum('prix_total'),
-
-                //Achat
-                'total_achats' => Achats::count(),
-                'total_achat_commande' => Achats::where('statut', Achats::ACHAT_COMMANDE)->count(),
-                'total_achats_recu' => Achats::where('statut', Achats::ACHAT_REÇU)->count(),
-                'total_prix_achats' => Achats::Reçu()->sum('prix_total'),
-
-                //Stock
-                'total_produits_stock' => Stock::where('actif', true)->count(),
-                'total_stock_disponible' => Stock::StockDisponible()->count(),
-                'total_stock_faible' => Stock::StockFaible()->count(),
-                'total_valeur_stock' => Stock::StockDisponible()->sum('prix_vente')
-            ];
             return response()->json([
                 'success' => true,
                 'data' => $allStats,
@@ -77,11 +71,12 @@ class StatsController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur survenue lors de la récupération des statistiques',
-                'error'=> $e->getMessage()
+                'message' => 'Erreur lors de la récupération des statistiques',
+                'error' => $e->getMessage()
             ], 500);
         }
     }
+
 
     public function statsDashboard(): JsonResponse
     {

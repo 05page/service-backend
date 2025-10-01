@@ -25,7 +25,7 @@ class ActivationCodeMail extends Mailable
         $this->user = $user;
 
         // Lien vers le frontend React (sans exposer le code)
-        $this->activationLink = config('app.frontend_url') . '/passwordV';
+        $this->activationLink = config('app.frontend_url') . '/code';
     }
 
     /**

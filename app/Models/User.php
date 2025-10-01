@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Support\Str;
+use App\Notifications\ResetPasswordNotification;
+use Illuminate\Auth\Notifications\ResetPassword as ResetPasswordBase;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -43,6 +45,11 @@ class User extends Authenticatable implements MustVerifyEmail
     const ROLE_EMPLOYE = 'employe';
     // const ROLE_INTERMEDIAIRE = 'intermediaire';
 
+    public function sendPasswordResetNotification($token)
+    {
+        $this->notify(new ResetPasswordNotification($token));
+    }
+    
     public function ventes()
     {
         return $this->hasMany(Ventes::class, 'created_by');
@@ -79,7 +86,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function permissions(): HasMany
     {
-        return $this->hasMany(Permissions::class, 'employe_id');
+        return $this->hasMany(Permissions::class, 'user_id');
     }
 
     // Helpers

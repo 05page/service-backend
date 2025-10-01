@@ -45,7 +45,7 @@ class VentesController extends Controller
                 'stock_id' => 'required|exists:stock,id',
                 'nom_client' => 'required|string|max:300',
                 'numero' => 'required|string|max:10',
-                'adresse'=> 'required|string|max:500',
+                'adresse' => 'required|string|max:500',
                 'quantite' => 'required|integer|min:1',
                 'prix_total' => 'nullable|numeric|min:0',
                 'statut' => ['sometimes', Rule::in([
@@ -75,7 +75,7 @@ class VentesController extends Controller
                 'nom_client' => $validated['nom_client'],
                 'numero' => $validated['numero'],
                 'quantite' => $validated['quantite'],
-                'adresse'=>$validated['adresse'],
+                'adresse' => $validated['adresse'],
                 'prix_total' => $validated['prix_total'] ?? null,
                 'statut' => $validated['statut'] ?? Ventes::STATUT_PAYE,
                 'created_by' => Auth::id(),
@@ -116,69 +116,41 @@ class VentesController extends Controller
     public function showVentes(): JsonResponse
     {
         try {
+            $user = Auth::user(); // On récupère l'utilisateur complet
             if (!$this->verifierPermissions()) {
                 return response()->json([
                     'success' => false,
-                    'messag' => "Accès refusé. Vous n\'avez pas la permission pour cette action."
+                    'message' => 'Accès refusé. Vous n\'avez pas la permission pour cette action.'
                 ], 403);
             }
 
-            $ventes = Ventes::with(['creePar:id,fullname,email,role', 'stock.achat:id,nom_service'])->select(
-                'id',
-                'stock_id',
-                'reference',
-                'nom_client',
-                'numero',
-                'quantite',
-                'prix_total',
-                'statut',
-                'created_by',
-                'created_at'
-            )->get();
-            return response()->json([
-                'succes' => true,
-                'data' => $ventes,
-                'message' => 'Les Ventes ont été récupéré avec succès'
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'succes' => false,
-                'message' => "Une erreur est survenue lors de la récupération des ventes",
-                'errors' => $e->getMessage()
-            ], 500);
-        }
-    }
+            $query = Ventes::with(['creePar:id,fullname,email,role', 'stock.achat:id,nom_service'])
+                ->select(
+                    'id',
+                    'stock_id',
+                    'reference',
+                    'nom_client',
+                    'numero',
+                    'quantite',
+                    'prix_total',
+                    'statut',
+                    'created_by',
+                    'created_at'
+                );
+            $ventes = $query->orderBy('created_at', 'desc')->get();
 
-    public function selectVente($id): JsonResponse
-    {
-        try {
-            if (!$this->verifierPermissions()) {
-                return response()->json([
-                    'success' => false,
-                    'messag' => "Accès refusé. Vous n\'avez pas la permission pour cette action."
-                ], 403);
-            }
-
-            $ventes = Ventes::with(['creePar:id,fullname,email,role', 'stock:id,categorie,nom_produit'])->select(
-                'stock_id',
-                'reference',
-                'nom_client',
-                'numero',
-                'quantite',
-                'prix_total',
-                'statut',
-                'created_by',
-                'created_at'
-            )->findOrFail($id);
             return response()->json([
-                'succes' => true,
-                'data' => $ventes
+                'success' => true,
+                'data'    => $ventes,
+                'message' => $user->role === User::ROLE_ADMIN
+                    ? "Toutes les ventes ont été récupérées avec succès"
+                    : "Vos ventes ont été récupérées avec succès"
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
-                'succes' => false,
-                'message' => "Une erreur est survenue lors de la récupération de cette vente",
-                'errors' => $e->getMessage()
+                'success' => false,
+                'message' => "Une erreur est survenue lors de la récupération des ventes",
+                'errors'  => $e->getMessage()
             ], 500);
         }
     }
@@ -399,12 +371,12 @@ class VentesController extends Controller
     public function myStats(): JsonResponse
     {
         try {
-            if (!$this->verifierPermissions()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès refusé'
-                ], 403);
-            }
+            // if (!$this->verifierPermissions()) {
+            //     return response()->json([
+            //         'success' => false,
+            //         'message' => 'Accès refusé'
+            //     ], 403);
+            // }
 
             $userId = Auth::id(); // ✅ Récupère l'utilisateur connecté
 
@@ -433,45 +405,64 @@ class VentesController extends Controller
 
     public function client(): JsonResponse
     {
-        try{
-            if (!$this->verifierPermissions()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès refusé'
-                ], 403);
+        try {
+            $user = Auth::user();
+            $clients = collect();
+
+            if ($user->role === User::ROLE_ADMIN) {
+                // Tous les clients pour l'admin
+                $ventes = Ventes::select(
+                    'id',
+                    'reference',
+                    'nom_client',
+                    'numero',
+                    'quantite',
+                    'adresse',
+                    'prix_total',
+                    'stock_id'
+                )->where('statut', 'payé')
+                    ->with(['stock'])
+                    ->get();
+            } else {
+                // Seulement les clients de l'employé
+                $ventes = Ventes::select(
+                    'id',
+                    'reference',
+                    'nom_client',
+                    'numero',
+                    'quantite',
+                    'adresse',
+                    'prix_total',
+                    'stock_id',
+                )->where('statut', 'payé')
+                    ->where('created_by', $user->id)
+                    ->with(['stock'])
+                    ->get();
             }
 
-            $client = Ventes::select(
-                'id',
-                'nom_client',
-                'numero',
-                'quantite',
-                'adresse',
-                'prix_total',
-                'stock_id'
-            )->where('statut', 'payé')->with(['stock'])
-            ->get()->groupBy('nom_client')->map(function ($ventes, $nom){
-                return[
-                    'id' => $ventes->first()->id,
-                    'nom_client'=> $nom,
-                    'numero'     => $ventes->first()->numero,
-                    'adresse'    => $ventes->first()->adresse,
-                    'prix_total' => $ventes->sum('prix_total'),
-                    'nombre_ventes' => $ventes->count(),
-                    'ventes'     => $ventes  
-                ];
-            })->values();
+            $clients = $ventes->groupBy('nom_client')
+                ->map(function ($ventes, $nom) {
+                    return [
+                        'id' => $ventes->first()->id,
+                        'nom_client' => $nom,
+                        'numero' => $ventes->first()->numero,
+                        'adresse' => $ventes->first()->adresse,
+                        'prix_total' => $ventes->sum('prix_total'),
+                        'nombre_ventes' => $ventes->count(),
+                        'ventes' => $ventes
+                    ];
+                })->values();
 
             return response()->json([
-                'success'=>true,
-                'message'=>'Client récupéré avec succès',
-                'data'=>$client
+                'success' => true,
+                'message' => 'Clients récupérés avec succès',
+                'data' => $clients
             ]);
-        }catch(\Exception $e){
+        } catch (\Exception $e) {
             return response()->json([
-                'success'=>false,
-                'message'=> 'Erreur survenue lors de la récupération',
-                'error'=> $e->getMessage()
+                'success' => false,
+                'message' => 'Erreur survenue lors de la récupération',
+                'error' => $e->getMessage()
             ]);
         }
     }

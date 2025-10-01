@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : 127.0.0.1
--- Généré le : ven. 05 sep. 2025 à 06:08
+-- Généré le : mer. 01 oct. 2025 à 23:37
 -- Version du serveur : 10.4.32-MariaDB
 -- Version de PHP : 8.2.12
 
@@ -30,7 +30,7 @@ SET time_zone = "+00:00";
 CREATE TABLE `achats` (
   `id` bigint(20) UNSIGNED NOT NULL,
   `fournisseur_id` bigint(20) UNSIGNED NOT NULL,
-  `nom_service` varchar(300) NOT NULL,
+  `nom_service` varchar(255) NOT NULL,
   `quantite` int(11) NOT NULL,
   `prix_unitaire` decimal(10,2) DEFAULT NULL,
   `prix_total` decimal(10,2) NOT NULL,
@@ -38,7 +38,7 @@ CREATE TABLE `achats` (
   `date_commande` date DEFAULT NULL,
   `date_livraison` date DEFAULT NULL,
   `statut` enum('commande','reçu','paye','annule') NOT NULL DEFAULT 'commande',
-  `mode_paiement` enum('virement','especes','mobile_money') DEFAULT NULL,
+  `mode_paiement` enum('virement','mobile_money','especes') DEFAULT NULL,
   `description` text DEFAULT NULL,
   `created_by` bigint(20) UNSIGNED DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
@@ -50,9 +50,8 @@ CREATE TABLE `achats` (
 --
 
 INSERT INTO `achats` (`id`, `fournisseur_id`, `nom_service`, `quantite`, `prix_unitaire`, `prix_total`, `numero_achat`, `date_commande`, `date_livraison`, `statut`, `mode_paiement`, `description`, `created_by`, `created_at`, `updated_at`) VALUES
-(1, 4, 'mocassin', 4, 2700.00, 15000.00, 'ACH-2025-001', '2025-08-16', '2025-08-22', 'reçu', NULL, NULL, NULL, '2025-09-01 21:10:15', '2025-09-02 15:52:07'),
-(3, 4, 'mocassin', 4, 2700.00, 12500.00, 'ACH-2025-003', '2025-08-16', '2025-09-01', 'reçu', 'virement', NULL, 1, '2025-09-01 21:25:00', '2025-09-02 15:51:12'),
-(4, 4, 'compte spotify', 4, 2700.00, 5000.00, 'ACH-2025-004', '2004-04-16', '2004-04-17', 'commande', 'virement', NULL, 1, '2025-09-01 23:20:55', '2025-09-02 01:11:53');
+(2, 1, 'streaming Crunchyroll', 5, 1800.00, 9000.00, 'ACH-2025-001', '2025-09-26', '2025-09-27', 'reçu', NULL, NULL, 1, '2025-09-26 04:19:34', '2025-10-01 04:32:40'),
+(5, 2, 'disque dur', 2, 20000.00, 40000.00, 'ACH-2025-002', '2025-10-01', '2025-10-08', 'commande', NULL, NULL, 1, '2025-10-01 20:36:59', '2025-10-01 20:36:59');
 
 -- --------------------------------------------------------
 
@@ -77,6 +76,30 @@ CREATE TABLE `cache_locks` (
   `owner` varchar(255) NOT NULL,
   `expiration` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `factures`
+--
+
+CREATE TABLE `factures` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `achat_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `vente_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `numero_facture` varchar(255) DEFAULT NULL,
+  `created_by` bigint(20) UNSIGNED DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Déchargement des données de la table `factures`
+--
+
+INSERT INTO `factures` (`id`, `achat_id`, `vente_id`, `numero_facture`, `created_by`, `created_at`, `updated_at`) VALUES
+(5, 2, NULL, 'FAC-2025-001', 1, '2025-10-01 18:00:19', '2025-10-01 18:00:19'),
+(6, NULL, 8, 'FAC-2025-002', 1, '2025-10-01 18:01:21', '2025-10-01 18:01:21');
 
 -- --------------------------------------------------------
 
@@ -118,11 +141,8 @@ CREATE TABLE `fournisseurs` (
 --
 
 INSERT INTO `fournisseurs` (`id`, `nom_fournisseurs`, `email`, `telephone`, `adresse`, `description`, `created_by`, `actif`, `created_at`, `updated_at`) VALUES
-(1, 'Netflix', 'contact@netflix.com', '0600000001', 'Yopougon', 'Fournit des comptes Netflix premium', 1, 1, '2025-08-30 17:36:03', '2025-08-31 19:42:59'),
-(2, 'MyCanal', 'mycanal@gmail.com.com', '0600000002', 'Angré', 'Fournit des comptes MyCanal', 1, 1, '2025-08-30 17:36:03', '2025-08-30 17:36:03'),
-(3, 'Vergine', 'vergine@gmail.com', '0600000003', 'Cocody', 'Fournit des mocassins', 1, 1, '2025-08-30 17:36:03', '2025-08-30 17:36:03'),
-(4, 'Spotify', 'spo@gmail.com', '0710073748', 'angré', 'Service de streamin', 1, 1, '2025-08-31 20:01:15', '2025-08-31 20:01:15'),
-(5, 'Orange', 'Orange@gmail.com', '2721239999', 'cocody', 'Service de recharge d\'unité', 1, 1, '2025-09-05 02:36:43', '2025-09-05 02:36:43');
+(1, 'lycoris', 'lycoris@gmail.com', '0708772062', 'riviera 2', 'streaming Crunchyroll', 1, 1, '2025-09-25 05:55:52', '2025-09-29 18:22:43'),
+(2, 'Mkd', 'mkd@gmail.com', '0796452168', 'yopougon', 'disque dur', 1, 1, '2025-09-29 18:24:21', '2025-09-29 18:24:21');
 
 -- --------------------------------------------------------
 
@@ -184,8 +204,29 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES
 (6, '2025_08_22_112007_permissions', 1),
 (7, '2025_08_25_144922_stock', 1),
 (8, '2025_08_25_144937_ventes', 1),
-(10, '2025_08_25_144956_factures', 1),
-(11, '2025_08_25_144946_achats', 2);
+(9, '2025_08_25_144946_achats', 1),
+(10, '2025_09_15_100536_factures', 1),
+(11, '2025_09_30_095344_create_password_reset_tokens_table', 2);
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `password_reset_tokens`
+--
+
+CREATE TABLE `password_reset_tokens` (
+  `email` varchar(255) NOT NULL,
+  `token` varchar(255) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Déchargement des données de la table `password_reset_tokens`
+--
+
+INSERT INTO `password_reset_tokens` (`email`, `token`, `created_at`) VALUES
+('jddibi16@gmail.com', '$2y$12$6QKeSUIaKIVo6cz4.ywyl.tQVyj8IBpSZbqeQZrNE6hEfemyxabmG', '2025-09-30 11:39:31'),
+('jeandaviddibi47@gmail.com', '$2y$12$KtvZHp6aGlxDRCiXAWmCBupQbf8dny2Hkkk118x/NTcANt9shbUz2', '2025-09-30 12:49:05');
 
 -- --------------------------------------------------------
 
@@ -195,7 +236,7 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES
 
 CREATE TABLE `permissions` (
   `id` bigint(20) UNSIGNED NOT NULL,
-  `employe_id` bigint(20) UNSIGNED NOT NULL,
+  `user_id` bigint(20) UNSIGNED NOT NULL,
   `created_by` bigint(20) UNSIGNED NOT NULL,
   `description` varchar(255) NOT NULL,
   `module` enum('fournisseurs','services','stock','ventes','achats','factures') NOT NULL,
@@ -208,21 +249,10 @@ CREATE TABLE `permissions` (
 -- Déchargement des données de la table `permissions`
 --
 
-INSERT INTO `permissions` (`id`, `employe_id`, `created_by`, `description`, `module`, `active`, `created_at`, `updated_at`) VALUES
-(1, 4, 1, 'Accès au module fournisseurs', 'fournisseurs', 1, '2025-08-30 17:17:06', '2025-08-30 17:17:06'),
-(2, 4, 1, 'Accès au module services', 'services', 1, '2025-08-30 17:17:06', '2025-08-30 17:17:06'),
-(3, 4, 1, 'Accès au module stock', 'stock', 1, '2025-08-30 17:17:06', '2025-08-30 17:17:06'),
-(4, 4, 1, 'Accès au module ventes', 'ventes', 1, '2025-08-30 17:17:06', '2025-08-30 17:17:06'),
-(5, 4, 1, 'Accès au module achats', 'achats', 1, '2025-08-30 17:17:06', '2025-08-30 17:17:06'),
-(6, 4, 1, 'Accès au module factures', 'factures', 1, '2025-08-30 17:17:06', '2025-08-30 17:17:06'),
-(7, 5, 1, 'Accès au module fournisseurs', 'fournisseurs', 1, '2025-08-30 17:17:06', '2025-08-30 17:17:06'),
-(8, 5, 1, 'Accès au module services', 'services', 1, '2025-08-30 17:17:06', '2025-08-30 17:17:06'),
-(9, 5, 1, 'Accès au module stock', 'stock', 1, '2025-08-30 17:17:06', '2025-08-30 17:17:06'),
-(10, 5, 1, 'Accès au module ventes', 'ventes', 1, '2025-08-30 17:17:06', '2025-08-30 17:17:06'),
-(11, 5, 1, 'Accès au module achats', 'achats', 1, '2025-08-30 17:17:06', '2025-08-30 17:17:06'),
-(12, 5, 1, 'Accès au module factures', 'factures', 1, '2025-08-30 17:17:06', '2025-08-30 17:17:06'),
-(19, 6, 1, 'Accès au module vente', 'ventes', 1, '2025-09-04 05:31:45', '2025-09-04 05:31:45'),
-(20, 6, 1, 'Accès au module vente', 'achats', 1, '2025-09-04 05:32:15', '2025-09-04 05:32:15');
+INSERT INTO `permissions` (`id`, `user_id`, `created_by`, `description`, `module`, `active`, `created_at`, `updated_at`) VALUES
+(1, 6, 1, 'test', 'stock', 1, '2025-10-01 02:18:30', '2025-10-01 18:53:11'),
+(2, 6, 1, 'test', 'achats', 1, '2025-10-01 02:24:13', '2025-10-01 18:53:13'),
+(3, 6, 1, 'test', 'ventes', 1, '2025-10-01 04:43:10', '2025-10-01 18:53:18');
 
 -- --------------------------------------------------------
 
@@ -248,9 +278,13 @@ CREATE TABLE `personal_access_tokens` (
 --
 
 INSERT INTO `personal_access_tokens` (`id`, `tokenable_type`, `tokenable_id`, `name`, `token`, `abilities`, `last_used_at`, `expires_at`, `created_at`, `updated_at`) VALUES
-(1, 'App\\Models\\User', 1, 'auth_token', '4aa775752f3c5bcf25a4daae3f339b31d9887c67cdf32f128d1bccfb6ab5e7d3', '[\"*\"]', NULL, NULL, '2025-08-30 16:42:08', '2025-08-30 16:42:08'),
-(2, 'App\\Models\\User', 1, 'auth_token', '6447510ca32624e628d6dc9e4a22aeb2b23d12dcde1faca774ba4b6eac63279e', '[\"*\"]', '2025-09-04 04:27:59', NULL, '2025-08-30 19:55:19', '2025-09-04 04:27:59'),
-(3, 'App\\Models\\User', 1, 'auth_token', '57665d3a2ab64edaa96eac37b42db773ce207c531b67e62e46729cd1f0544063', '[\"*\"]', '2025-09-05 03:13:05', NULL, '2025-09-01 16:38:13', '2025-09-05 03:13:05');
+(11, 'App\\Models\\User', 5, 'auth_token', 'a07344d618a852540783c478dbbfe3f6b4a94b447544f3008ee575647c8c15be', '[\"*\"]', '2025-09-29 23:42:02', NULL, '2025-09-29 23:33:20', '2025-09-29 23:42:02'),
+(14, 'App\\Models\\User', 5, 'auth_token', 'b471c90bde1a13e27f72154a4ac84f27a623a9f04d67e6b345965e3c777ee98d', '[\"*\"]', NULL, NULL, '2025-09-30 08:56:15', '2025-09-30 08:56:15'),
+(15, 'App\\Models\\User', 5, 'auth_token', '18046666d9c6ee782cb8db58ada92460050d96df8e85dfb7ee5a3d2c84f7a6d3', '[\"*\"]', '2025-09-30 22:33:01', NULL, '2025-09-30 09:28:09', '2025-09-30 22:33:01'),
+(17, 'App\\Models\\User', 6, 'auth_token', 'b8dc83018c5e615ea765db3d04b16369aeb3d14ba5976bda33954c2136f54ddf', '[\"*\"]', '2025-09-30 11:50:49', NULL, '2025-09-30 11:49:34', '2025-09-30 11:50:49'),
+(20, 'App\\Models\\User', 6, 'auth_token', '6b65e0c0cc76e142e57a57c2e903987aeb2c000cd76249d79141059b27df344a', '[\"*\"]', '2025-10-01 21:31:55', NULL, '2025-09-30 13:30:19', '2025-10-01 21:31:55'),
+(23, 'App\\Models\\User', 1, 'auth_token', '7446ffa646ad430bf65bb749e8509910d02fe9966eb966b73f3ae2133dfd1984', '[\"*\"]', '2025-10-01 21:24:58', NULL, '2025-09-30 22:13:26', '2025-10-01 21:24:58'),
+(24, 'App\\Models\\User', 1, 'auth_token', '6dc2a21735ae7cd4edb7f7db1740e42ad4092ad558d0784577065a9170165cf9', '[\"*\"]', '2025-10-01 06:09:41', NULL, '2025-09-30 22:19:46', '2025-10-01 06:09:41');
 
 -- --------------------------------------------------------
 
@@ -275,15 +309,12 @@ CREATE TABLE `sessions` (
 
 CREATE TABLE `stock` (
   `id` bigint(20) UNSIGNED NOT NULL,
-  `nom_produit` text NOT NULL,
+  `achat_id` bigint(20) UNSIGNED NOT NULL,
   `code_produit` varchar(255) NOT NULL,
-  `achat_id` int(11) NOT NULL,
   `categorie` varchar(255) DEFAULT NULL,
-  `fournisseur_id` bigint(20) UNSIGNED NOT NULL,
-  `quantite` int(11) NOT NULL DEFAULT 0,
+  `quantite` int(11) NOT NULL,
   `quantite_min` int(11) NOT NULL DEFAULT 0,
-  `prix_achat` int(11) NOT NULL,
-  `prix_vente` int(11) NOT NULL,
+  `prix_vente` decimal(10,2) NOT NULL,
   `description` varchar(255) DEFAULT NULL,
   `statut` enum('disponible','alerte','rupture') NOT NULL,
   `actif` tinyint(1) NOT NULL DEFAULT 1,
@@ -296,11 +327,8 @@ CREATE TABLE `stock` (
 -- Déchargement des données de la table `stock`
 --
 
-INSERT INTO `stock` (`id`, `nom_produit`, `code_produit`, `achat_id`, `categorie`, `fournisseur_id`, `quantite`, `quantite_min`, `prix_achat`, `prix_vente`, `description`, `statut`, `actif`, `created_by`, `created_at`, `updated_at`) VALUES
-(2, 'Compte Spotify', 'ACH-2025-001', 3, NULL, 4, 0, 2, 5000, 8000, NULL, 'rupture', 0, 1, '2025-09-03 13:21:26', '2025-09-04 03:46:59'),
-(3, 'Compte Spotify', 'ACH-2025-002', 3, NULL, 4, 4, 2, 5000, 8000, NULL, 'disponible', 1, 1, '2025-09-03 13:21:48', '2025-09-03 13:21:48'),
-(4, 'Compte Spotify', 'ACH-2025-003', 3, NULL, 4, 9, 2, 5000, 8000, NULL, 'disponible', 1, 1, '2025-09-03 13:22:13', '2025-09-03 13:22:13'),
-(5, 'mocassin', 'STCK-2025-004', 1, NULL, 4, 0, 1, 2700, 8000, 'Vente de chaussure', 'rupture', 1, 1, '2025-09-03 20:28:05', '2025-09-04 03:43:09');
+INSERT INTO `stock` (`id`, `achat_id`, `code_produit`, `categorie`, `quantite`, `quantite_min`, `prix_vente`, `description`, `statut`, `actif`, `created_by`, `created_at`, `updated_at`) VALUES
+(4, 2, 'STCK-2025-003', 'services', 3, 1, 2300.00, NULL, 'disponible', 1, 6, '2025-10-01 15:18:01', '2025-10-01 18:01:16');
 
 -- --------------------------------------------------------
 
@@ -315,7 +343,7 @@ CREATE TABLE `users` (
   `telephone` varchar(255) NOT NULL,
   `adresse` varchar(255) NOT NULL,
   `role` enum('admin','employe','intermediaire') NOT NULL DEFAULT 'admin',
-  `password` varchar(255) NOT NULL,
+  `password` varchar(255) DEFAULT NULL,
   `activation_code` varchar(255) DEFAULT NULL,
   `activated_at` timestamp NULL DEFAULT NULL,
   `active` tinyint(1) NOT NULL DEFAULT 1,
@@ -330,12 +358,9 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `fullname`, `email`, `telephone`, `adresse`, `role`, `password`, `activation_code`, `activated_at`, `active`, `email_verified_at`, `created_by`, `created_at`, `updated_at`) VALUES
-(1, 'Dibi Jean David Raymond', 'jeandaviddibi16@gmail.com', '0703195229', 'cocody', 'admin', '$2y$12$I.uERnlitUTsk62W55V.mO7zi9BPCd6Rtab6j9Dqmck4.FhST2sPy', 'A3m83YaD', NULL, 1, '2025-08-30 16:43:48', NULL, '2025-08-30 16:41:25', '2025-08-30 16:43:48'),
-(2, 'Admin Two', 'admin1@example.com', '0100000001', 'Adresse Admin 1', 'admin', '$2y$12$4qQSLNoC66pSb3JX9vaEM.2FaOwtjarKlNwiRuyyv49im5wTf.PCq', 'fgql912e', NULL, 1, NULL, NULL, '2025-08-30 16:59:07', '2025-08-30 16:59:07'),
-(3, 'Admin three', 'admin2@example.com', '0100000002', 'Adresse Admin 2', 'admin', '$2y$12$0Ht5teCSBLT119ponBq.ruYuyN0zbXYPHr3SeRQTtfGxPZMxYKD4K', 'vPJF5v90', NULL, 1, NULL, NULL, '2025-08-30 16:59:08', '2025-08-30 16:59:08'),
-(4, 'Employe 1', 'employe1@example.com', '0200000001', 'Adresse Employe 1', 'employe', 'Password_123', NULL, '2025-08-30 17:03:48', 1, '2025-08-30 17:04:15', 1, '2025-08-30 16:59:09', '2025-08-30 17:03:48'),
-(5, 'Employe 2', 'employe2@example.com', '0200000002', 'Adresse Employe 2', 'employe', '$2y$12$Z7YF9W9kCm/URzHIX/MFKerPu9JkMsX.WicyfoGVasigy0ZejuLqC', NULL, '2025-08-30 17:04:59', 1, '2025-08-30 17:05:39', 1, '2025-08-30 16:59:10', '2025-08-30 17:04:59'),
-(6, 'Employe 3', 'employe3@example.com', '0200000003', 'Adresse Employe 3', 'employe', '$2y$12$xWJ3866CWbBFCEoRSmKqmeCG0sKL4YXhUdDzBYok/euvPvX5RT8oa', NULL, '2025-08-30 17:05:19', 1, '2025-08-30 17:05:39', 2, '2025-08-30 16:59:11', '2025-08-30 17:05:19');
+(1, 'Dibi jd', 'jeandaviddibi16@gmail.com', '0703195229', 'yopougon', 'admin', '$2y$12$UVnl0WPA7l8K8x9IfILnN.l5ChYdL2xvJb0ov4wTFTVVbjRD8Ve0a', 'vnFmsDhx', NULL, 0, '2025-09-25 04:56:56', NULL, '2025-09-25 04:54:43', '2025-10-01 18:27:52'),
+(5, 'Raymond Diby', 'jddibi16@gmail.com', '0708772062', 'yopougon', 'employe', '$2y$12$vybsyoDbRFBDiwLm34Xe4.L8R8nwSKoEDVdZqW/hPgSjDcPGgUV1q', NULL, '2025-09-29 23:31:53', 1, '2025-09-29 23:31:53', 1, '2025-09-29 23:30:38', '2025-09-30 09:28:56'),
+(6, 'Kouassi Dibi jean david', 'jeandaviddibi47@gmail.com', '0708776056', 'yopougon', 'employe', '$2y$12$Mw7j1Tp6/3.G17FwW3wFB.JWzFI6ocn/UBOx4UIk6W61ALCHjbwgC', NULL, '2025-09-30 11:48:10', 1, '2025-09-30 11:48:10', 1, '2025-09-30 11:46:35', '2025-10-01 18:53:45');
 
 -- --------------------------------------------------------
 
@@ -349,9 +374,10 @@ CREATE TABLE `ventes` (
   `reference` varchar(255) NOT NULL,
   `nom_client` varchar(255) NOT NULL,
   `numero` varchar(255) NOT NULL,
+  `adresse` varchar(255) DEFAULT NULL,
   `quantite` int(11) DEFAULT NULL,
   `prix_total` decimal(10,2) NOT NULL,
-  `statut` enum('en_attente','payé','annulé') NOT NULL,
+  `statut` enum('en attente','paye','annule') NOT NULL,
   `created_by` bigint(20) UNSIGNED DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
@@ -361,9 +387,8 @@ CREATE TABLE `ventes` (
 -- Déchargement des données de la table `ventes`
 --
 
-INSERT INTO `ventes` (`id`, `stock_id`, `reference`, `nom_client`, `numero`, `quantite`, `prix_total`, `statut`, `created_by`, `created_at`, `updated_at`) VALUES
-(3, 5, 'VEN-2025-001', 'David dibi', '0708772062', 4, 32000.00, 'en_attente', 1, '2025-09-04 03:43:09', '2025-09-04 03:43:09'),
-(4, 2, 'VEN-2025-002', 'David dibi', '0708772062', 4, 32000.00, 'en_attente', 1, '2025-09-04 03:46:59', '2025-09-04 03:46:59');
+INSERT INTO `ventes` (`id`, `stock_id`, `reference`, `nom_client`, `numero`, `adresse`, `quantite`, `prix_total`, `statut`, `created_by`, `created_at`, `updated_at`) VALUES
+(8, 4, 'VEN-2025-001', 'Kouassi Horlane', '0708772062', 'Yamoussoukro', 2, 4600.00, 'paye', 1, '2025-10-01 18:01:16', '2025-10-01 18:01:16');
 
 --
 -- Index pour les tables déchargées
@@ -389,6 +414,16 @@ ALTER TABLE `cache`
 --
 ALTER TABLE `cache_locks`
   ADD PRIMARY KEY (`key`);
+
+--
+-- Index pour la table `factures`
+--
+ALTER TABLE `factures`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `factures_numero_facture_unique` (`numero_facture`),
+  ADD KEY `factures_achat_id_foreign` (`achat_id`),
+  ADD KEY `factures_vente_id_foreign` (`vente_id`),
+  ADD KEY `factures_created_by_foreign` (`created_by`);
 
 --
 -- Index pour la table `failed_jobs`
@@ -426,11 +461,17 @@ ALTER TABLE `migrations`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Index pour la table `password_reset_tokens`
+--
+ALTER TABLE `password_reset_tokens`
+  ADD KEY `password_reset_tokens_email_index` (`email`);
+
+--
 -- Index pour la table `permissions`
 --
 ALTER TABLE `permissions`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `permissions_user_id_foreign` (`employe_id`),
+  ADD KEY `permissions_user_id_foreign` (`user_id`),
   ADD KEY `permissions_created_by_foreign` (`created_by`),
   ADD KEY `permissions_module_active_index` (`module`,`active`);
 
@@ -457,8 +498,8 @@ ALTER TABLE `sessions`
 ALTER TABLE `stock`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `stock_code_produit_unique` (`code_produit`),
-  ADD KEY `stock_fournisseur_id_foreign` (`fournisseur_id`),
-  ADD KEY `stock_created_by_foreign` (`created_by`);
+  ADD KEY `stock_created_by_foreign` (`created_by`),
+  ADD KEY `achat_id` (`achat_id`);
 
 --
 -- Index pour la table `users`
@@ -473,6 +514,7 @@ ALTER TABLE `users`
 --
 ALTER TABLE `ventes`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `ventes_reference_unique` (`reference`),
   ADD KEY `ventes_stock_id_foreign` (`stock_id`),
   ADD KEY `ventes_created_by_foreign` (`created_by`);
 
@@ -484,7 +526,13 @@ ALTER TABLE `ventes`
 -- AUTO_INCREMENT pour la table `achats`
 --
 ALTER TABLE `achats`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+--
+-- AUTO_INCREMENT pour la table `factures`
+--
+ALTER TABLE `factures`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT pour la table `failed_jobs`
@@ -496,7 +544,7 @@ ALTER TABLE `failed_jobs`
 -- AUTO_INCREMENT pour la table `fournisseurs`
 --
 ALTER TABLE `fournisseurs`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT pour la table `jobs`
@@ -514,31 +562,31 @@ ALTER TABLE `migrations`
 -- AUTO_INCREMENT pour la table `permissions`
 --
 ALTER TABLE `permissions`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT pour la table `personal_access_tokens`
 --
 ALTER TABLE `personal_access_tokens`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
 
 --
 -- AUTO_INCREMENT pour la table `stock`
 --
 ALTER TABLE `stock`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT pour la table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT pour la table `ventes`
 --
 ALTER TABLE `ventes`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- Contraintes pour les tables déchargées
@@ -552,18 +600,26 @@ ALTER TABLE `achats`
   ADD CONSTRAINT `achats_fournisseur_id_foreign` FOREIGN KEY (`fournisseur_id`) REFERENCES `fournisseurs` (`id`) ON DELETE CASCADE;
 
 --
+-- Contraintes pour la table `factures`
+--
+ALTER TABLE `factures`
+  ADD CONSTRAINT `factures_achat_id_foreign` FOREIGN KEY (`achat_id`) REFERENCES `achats` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `factures_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `factures_vente_id_foreign` FOREIGN KEY (`vente_id`) REFERENCES `ventes` (`id`) ON DELETE CASCADE;
+
+--
 -- Contraintes pour la table `permissions`
 --
 ALTER TABLE `permissions`
   ADD CONSTRAINT `permissions_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `permissions_user_id_foreign` FOREIGN KEY (`employe_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `permissions_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
 -- Contraintes pour la table `stock`
 --
 ALTER TABLE `stock`
   ADD CONSTRAINT `stock_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
-  ADD CONSTRAINT `stock_fournisseur_id_foreign` FOREIGN KEY (`fournisseur_id`) REFERENCES `fournisseurs` (`id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `stock_ibfk_1` FOREIGN KEY (`achat_id`) REFERENCES `achats` (`id`);
 
 --
 -- Contraintes pour la table `users`

@@ -32,6 +32,7 @@ class StockController extends Controller
 
             $validate = $request->validate([
                 'achat_id' => 'required|exists:achats,id',
+                'categorie' => 'nullable|string|max:300',
                 'quantite' => 'required|integer|min:1',
                 'quantite_min' => 'required|integer|min:1',
                 'prix_vente' => 'required|numeric|min:0',
@@ -41,7 +42,7 @@ class StockController extends Controller
             //On récupère
             $achat = Achats::with('fournisseur')
                 ->where('id', $validate['achat_id'])
-                ->where('statut', 'paye')
+                ->whereIn('statut', ['paye', 'reçu'])
                 ->doesntHave('stock')
                 ->first();
 
@@ -54,7 +55,7 @@ class StockController extends Controller
 
             DB::beginTransaction();
             $stock = Stock::create([
-                'achat_id' => $validate['achat_id'], 
+                'achat_id' => $validate['achat_id'],
                 'categorie' => $validate['categorie'] ?? null,
                 'quantite' => $validate['quantite'],
                 'quantite_min' => $validate['quantite_min'],
@@ -91,9 +92,10 @@ class StockController extends Controller
     {
         try {
             $user = Auth::user();
+
             if ($user->role !== User::ROLE_ADMIN) {
                 /** @var User $user */
-                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_SERVICES)->where('active', true)->exists();
+                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_STOCK)->where('active', true)->exists();
                 if (!$hasPermission) {
                     return response()->json([
                         'success' => false,
@@ -101,48 +103,51 @@ class StockController extends Controller
                     ], 403);
                 }
             }
+            $query = Stock::with(['creePar:id,fullname,email,role', 'achat:id,nom_service'])
+                ->select(
+                    'id',
+                    'achat_id',
+                    'code_produit',
+                    'quantite',
+                    'quantite_min',
+                    'prix_vente',
+                    'statut',
+                    'actif',
+                    'created_by',
+                    'created_at'
+                );
 
-            $query = Stock::with(['creePar:id,fullname,email,role'])->withAchat()->select(
-                'id',
-                'achat_id',
-                'code_produit',
-                'quantite',
-                'quantite_min',
-                'prix_vente',
-                'statut',
-                'actif',
-                'created_by',
-                'created_at'
-            );
-
-            if($request->filled('statut')){
-                switch($request->statut){
+            // 📌 Filtrage par statut si fourni
+            if ($request->filled('statut')) {
+                switch ($request->statut) {
                     case 'disponible':
                         $query->stockDisponible();
                         break;
                     case 'faible':
                         $query->stockFaible();
-                        break; 
+                        break;
                     case 'rupture':
-                        $query->rupture();       
+                        $query->rupture();
+                        break;
                 }
             }
 
-            $stocks = $query->get();
+            $stocks = $query->orderBy('created_at', 'desc')->get();
 
             return response()->json([
                 'success' => true,
                 'data' => $stocks,
-                'message' => 'selection réussie'
+                'message' => 'Stocks récupérés avec succès'
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur survenue lors de la récupération des données',
+                'message' => 'Erreur survenue lors de la récupération des stocks',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
+
 
     public function show($id): JsonResponse
     {
@@ -200,11 +205,11 @@ class StockController extends Controller
             }
             $updateStock = $request->validate([
                 'achat_id' => 'sometimes|required|exists:achats,id',
-                'nom_produit' => 'sometimes|required|string|max:300',
-                // 'quantite' => 'required|integer|min:1',
+                'categorie' => 'sometimes|nullable|string|max:300',
+                'quantite' => 'sometimes|required|integer|min:1',
                 'quantite_min' => 'sometimes|required|integer|min:1',
                 'prix_vente' => 'sometimes|required|numeric|min:0',
-                'description' => 'sometimes|required|max:300',
+                'description' => 'sometimes|nullable|string|max:300',
             ]);
 
             DB::beginTransaction();
@@ -319,13 +324,13 @@ class StockController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => "Cet article a été désactivé avec succès",
-                'data'=> $stock
+                'data' => $stock
             ], 201);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => "Erreur survenue lors de la désactivation de cet article",
-                'errors'=> $e->getMessage()
+                'errors' => $e->getMessage()
             ], 500);
         }
     }
@@ -357,13 +362,13 @@ class StockController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => "Cet article a été réactivé avec succès",
-                'data'=> $stock
+                'data' => $stock
             ], 201);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => "Erreur survenue lors de la réactivation de cet article",
-                'errors'=> $e->getMessage()
+                'errors' => $e->getMessage()
             ], 500);
         }
     }
@@ -371,31 +376,26 @@ class StockController extends Controller
     public function statStock(): JsonResponse
     {
         try {
-            if (Auth::user()->role !== User::ROLE_ADMIN) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès refusé. Seul un admin peut supprimer toutes les ventes.'
-                ], 403);
-            }
-
+           $userId = Auth::id();
             $statStock = [
-                'total_article' => Stock::count(),
-                'article_disponibles' => Stock::StockDisponible()->count(),
-                'article_faibles' => Stock::StockFaible()->count(),
-                'valeur_stock' => Stock::sum('prix_vente')
+                'total_produits_stock' => Stock::where('created_by', $userId)->count(),
+                'total_stock_disponible' => Stock::where('created_by', $userId)->StockDisponible()->count(),
+                'total_stock_faible' => Stock::where('created_by', $userId)->StockFaible()->count(),
+                'total_valeur_stock' => Stock::where('created_by', $userId)->StockDisponible()->sum('prix_vente'),
+
             ];
 
             return response()->json([
                 'success' => true,
                 'data' => $statStock,
+                'message' => 'Vos statistiques ont été récupérées avec succès'
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur survenue lors de la récupération des statistiques',
-                'errors'=> $e->getMessage()
+                'errors' => $e->getMessage()
             ], 500);
         }
     }
-    
 }

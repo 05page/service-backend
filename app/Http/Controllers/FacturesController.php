@@ -87,7 +87,8 @@ class FacturesController extends Controller
                 'type_facture' => 'vente',
                 'client' => [
                     'nom' => $vente->nom_client,
-                    'telephone' => $vente->numero
+                    'telephone' => $vente->numero,
+                    'adresse'=> $vente->adresse
                 ],
                 'articles' => [
                     [
@@ -206,6 +207,7 @@ class FacturesController extends Controller
                 'articles' => [
                     [
                         'description' => $achat->nom_service,
+                        'numero_achat'=> $achat->numero_achat,
                         'quantite' => $achat->quantite,
                         'prix_unitaire' => $achat->prix_unitaire,
                         'total' => $achat->prix_total
@@ -228,11 +230,15 @@ class FacturesController extends Controller
 
             // Génération du PDF avec DomPDF
             $pdf = Pdf::loadView('factures.pdf', $donneesFacture)
-                ->setPaper('A4', 'portrait')
+                ->setPaper('A4', 'landscape')
                 ->setOptions([
                     'isHtml5ParserEnabled' => true,
                     'isPhpEnabled' => true,
-                    'defaultFont' => 'Arial'
+                    'defaultFont' => 'Arial',
+                    'margin-top' => 10,
+                    'margin-bottom' => 10,
+                    'margin-left' => 10,
+                    'margin-right' => 10,
                 ]);
 
             $nomFichier = "{$facture->numero_facture}.pdf";

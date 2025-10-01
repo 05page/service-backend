@@ -24,14 +24,16 @@ Route::post('/set-password', [AuthController::class, 'setPassword']);
 Route::post('activate-account', [EmployeIntermediaireController::class, 'activateAccount']);
 
 Route::post('/password/forgot', [PasswordController::class, 'forgotPassword']);
+Route::post('/password/change', [PasswordController::class, 'resetPassword']);
+
 Route::post('/password/check-token', [PasswordController::class, 'checkResetToken']);
-Route::post('/password/reset', [PasswordController::class, 'resetPassword']);
 
 Route::middleware('auth:sanctum')->group(function () {
+
     Route::get('/profil', [ProfileController::class, 'userInfo']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::put('/update', [ProfileController::class, 'updateProfile']);
-    Route::post('/password/change', [PasswordController::class, 'changePassword']);
+    Route::post('/password/reset', [PasswordController::class, 'changePassword']);
 
     Route::get('/dashboard', [StatsController::class, 'statsDashboard']);
     Route::get('/allStats', [StatsController::class, 'allStats']);
@@ -41,10 +43,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/showEmploye', [EmployeIntermediaireController::class, 'showEmploye']);
         Route::get('/show/{id}', [EmployeIntermediaireController::class, 'show']);
         Route::put('/updateEmploye', [EmployeIntermediaireController::class, 'updateEmploye']);
-        Route::post('/deleteEmployes', [EmployeIntermediaireController::class, 'deleteAllEmployes']);
-        Route::post('/deleteEmploye/{id}', [EmployeIntermediaireController::class, 'deleteEmploye']);
-        Route::post('/activateEmploye/{id}', [EmployeIntermediaireController::class, 'activateUser']);
-        Route::post('/desactivateEmploye/{id}', [EmployeIntermediaireController::class, 'desActivateUser']);
+        Route::delete('/deleteEmployes', [EmployeIntermediaireController::class, 'deleteAllEmployes']);
+        Route::delete('/deleteEmploye/{id}', [EmployeIntermediaireController::class, 'deleteEmploye']);
+        Route::post('/toggleUserStatus/{id}', [EmployeIntermediaireController::class, 'toggleUserStatus']);
 
         Route::post('/createPermission', [PermissionsController::class, 'createPermission']);
         Route::get('/showPermissions', [PermissionsController::class, 'showPermission']);
