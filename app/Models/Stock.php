@@ -146,10 +146,6 @@ class Stock extends Model
     /**Obtenir le statut du stock */
     public function getStatutStock(): string
     {
-        if (!$this->actif) {
-            return 'inactif';
-        }
-
         if ($this->quantite == 0) {
             return 'rupture';
         }

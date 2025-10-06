@@ -56,40 +56,39 @@ class VentesController extends Controller
             ]);
 
             // ✅ CORRECTION : Vérifier si le stock existe ET est disponible
-            $stock = Stock::where('id', $validated['stock_id'])
-                ->where('statut', 'disponible')
-                ->first();
 
+            $stock = Stock::find($validated['stock_id']);
             if (!$stock) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Stock non trouvé ou indisponible'
+                    'message' => 'Stock non trouvé.'
+                ], 404);
+            }
+
+            // ✅ Vérification de la quantité disponible
+            if ($stock->quantite < $validated['quantite']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Stock insuffisant pour cette quantité.'
                 ], 400);
             }
 
             DB::beginTransaction();
 
-            $vente = new Ventes([
-                // 'reference' => Ventes::generateRef(), // ✅ Décommentez si nécessaire
-                'stock_id' => $stock->id, // ✅ Maintenant safe car $stock existe
+            $vente = Ventes::create([
+                'stock_id' => $stock->id,
                 'nom_client' => $validated['nom_client'],
                 'numero' => $validated['numero'],
-                'quantite' => $validated['quantite'],
                 'adresse' => $validated['adresse'],
-                'prix_total' => $validated['prix_total'] ?? null,
+                'quantite' => $validated['quantite'],
+                'prix_total' => $validated['prix_total'] ?? ($stock->prix_vente * $validated['quantite']),
                 'statut' => $validated['statut'] ?? Ventes::STATUT_PAYE,
                 'created_by' => Auth::id(),
             ]);
 
-            if (!$vente->VerifyStock()) {
-                DB::rollBack();
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Stock insuffisant pour cette quantité'
-                ], 400);
-            }
-
-            $vente->save();
+            // ✅ Décrémenter la quantité en stock
+            $stock->retirerStock($validated['quantite']);
+            $stock->updateStatut();
             DB::commit();
 
             return response()->json([
@@ -131,6 +130,7 @@ class VentesController extends Controller
                     'reference',
                     'nom_client',
                     'numero',
+                    'adresse',
                     'quantite',
                     'prix_total',
                     'statut',
@@ -166,8 +166,10 @@ class VentesController extends Controller
             }
 
             $validated = $request->validate([
+                'stock_id' => 'sometimes|required|exists:stock,id',
                 'nom_client' => 'sometimes|required|string|max:300',
                 'numero' => 'sometimes|required|string|max:10',
+                'adresse' => 'sometimes|required|string|max:500',
                 'quantite' => 'sometimes|required|integer|min:1',
                 'prix_total' => 'sometimes|nullable|numeric|min:0',
                 'statut' => ['sometimes', Rule::in([

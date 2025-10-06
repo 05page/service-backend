@@ -42,7 +42,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/createUser', [EmployeIntermediaireController::class, 'createUser']);
         Route::get('/showEmploye', [EmployeIntermediaireController::class, 'showEmploye']);
         Route::get('/show/{id}', [EmployeIntermediaireController::class, 'show']);
-        Route::put('/updateEmploye', [EmployeIntermediaireController::class, 'updateEmploye']);
+        Route::put('/updateEmploye/{id}', [EmployeIntermediaireController::class, 'updateEmploye']);
         Route::delete('/deleteEmployes', [EmployeIntermediaireController::class, 'deleteAllEmployes']);
         Route::delete('/deleteEmploye/{id}', [EmployeIntermediaireController::class, 'deleteEmploye']);
         Route::post('/toggleUserStatus/{id}', [EmployeIntermediaireController::class, 'toggleUserStatus']);
@@ -61,7 +61,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('reactive/{id}', [FournisseurController::class, 'reactiverFournisseur']);
         Route::get('{id}', [FournisseurController::class, 'selectFournisseur']);         // Voir détail (view_suppliers)
         Route::put('{id}', [FournisseurController::class, 'updateFournisseur']);       // Modifier (edit_suppliers)
-        Route::delete('{id}', [FournisseurController::class, 'destroy']);   // Supprimer (delete_suppliers)
+        Route::delete('{id}', [FournisseurController::class, 'deleteFournisseur']);   // Supprimer (delete_suppliers)
     });
 
     Route::prefix('stock')->group(function () {

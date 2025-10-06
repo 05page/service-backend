@@ -38,7 +38,7 @@ class StatsController extends Controller
                     'chiffre_affaires_jour' => Ventes::Paye()->whereDate('created_at', today())->sum('prix_total'),
 
                     // Clients
-                    'total_client' => Ventes::select('nom_client')->distinct()->count(),
+                    'total_client' => Ventes::distinct('nom_client')->count('nom_client'),
 
                     // Achats
                     'total_achats' => Achats::count(),

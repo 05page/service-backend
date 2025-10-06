@@ -95,7 +95,7 @@ class EmployeIntermediaireController extends Controller
     {
         try {
             $validated = $request->validate([
-                'email' => 'required|email',
+                'email' => 'required|email|exists:users,email',
                 'activation_code' => 'required|string',
             ]);
 
@@ -121,7 +121,7 @@ class EmployeIntermediaireController extends Controller
             // $employeIntermediaire->activate_code();
             $employeIntermediaire->active = true;
             // Recharger les données depuis la base pour avoir les infos à jour
-            $employeIntermediaire->refresh();
+            $employeIntermediaire->save();
 
             return response()->json([
                 'success' => true,
@@ -243,7 +243,7 @@ class EmployeIntermediaireController extends Controller
             }
             $employeUpdate = $request->validate([
                 'type' => 'sometimes|required|string|max:300',
-                'nom_complet' => 'sometimes|required|string|max:300',
+                'fullname' => 'sometimes|required|string|max:300',
                 'email' => 'sometimes|required|email',
                 'telephone' => 'sometimes|required|string|max:10',
                 'adresse' => 'sometimes|required|string|max:300'

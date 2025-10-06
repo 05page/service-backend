@@ -103,11 +103,12 @@ class StockController extends Controller
                     ], 403);
                 }
             }
-            $query = Stock::with(['creePar:id,fullname,email,role', 'achat:id,nom_service'])
+            $query = Stock::with(['creePar:id,fullname,email,role', 'achat:id,nom_service,prix_unitaire'])
                 ->select(
                     'id',
                     'achat_id',
                     'code_produit',
+                    'categorie',
                     'quantite',
                     'quantite_min',
                     'prix_vente',
@@ -117,7 +118,7 @@ class StockController extends Controller
                     'created_at'
                 );
 
-            // 📌 Filtrage par statut si fourni
+            //Filtrage par statut si fourni
             if ($request->filled('statut')) {
                 switch ($request->statut) {
                     case 'disponible':
@@ -148,54 +149,13 @@ class StockController extends Controller
         }
     }
 
-
-    public function show($id): JsonResponse
-    {
-        try {
-            $user = Auth::user();
-            if ($user->role !== User::ROLE_ADMIN) {
-                /** @var User $user */
-                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_SERVICES)->where('active', true)->exists();
-                if (!$hasPermission) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Accès refusé. Vous n’avez pas la permission pour cette action."
-                    ], 403);
-                }
-            }
-
-            $stock = Stock::with(['creePar:id,fullname,email,role', 'fournisseur:id,nom_fournisseurs'])->select(
-                'fournisseur_id',
-                'nom_produit',
-                'quantite',
-                'quantite_min',
-                'statut',
-                'actif',
-                'created_by',
-                'created_at'
-            )->findOrFail($id);
-
-            return response()->json([
-                'success' => true,
-                'data' => $stock,
-                'message' => 'selection réussie'
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur survenue lors de la récupération des données',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
     public function updateStock(Request $request, $id): JsonResponse
     {
         try {
             $user = Auth::user();
             if ($user->role !== User::ROLE_ADMIN) {
                 /** @var User $user */
-                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_SERVICES)->where('active', true)->exists();
+                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_STOCK)->where('active', true)->exists();
                 if (!$hasPermission) {
                     return response()->json([
                         'success' => false,
@@ -203,24 +163,45 @@ class StockController extends Controller
                     ], 403);
                 }
             }
+            // ✅ Validation des entrées
             $updateStock = $request->validate([
                 'achat_id' => 'sometimes|required|exists:achats,id',
                 'categorie' => 'sometimes|nullable|string|max:300',
-                'quantite' => 'sometimes|required|integer|min:1',
-                'quantite_min' => 'sometimes|required|integer|min:1',
+                'quantite' => 'sometimes|required|integer|min:0',
+                'quantite_min' => 'sometimes|required|integer|min:0',
                 'prix_vente' => 'sometimes|required|numeric|min:0',
                 'description' => 'sometimes|nullable|string|max:300',
             ]);
 
             DB::beginTransaction();
-            $stock = Stock::findOrFail($id);
 
+            // 🔍 Récupérer le stock et son achat lié
+            $stock = Stock::findOrFail($id);
+            $achat = $stock->achat; // Relation définie dans ton modèle Stock
+
+            // ✅ Règle 1 : Vérifier que la quantité ≤ quantité de l'achat
+            if (isset($updateStock['quantite']) && $achat) {
+                if ($updateStock['quantite'] > $achat->quantite) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Impossible de définir une quantité de stock supérieure à la quantité achetée ({$achat->quantite})."
+                    ], 400);
+                }
+            }
+
+            // ✅ Mise à jour du stock
             $stock->update($updateStock);
+
+            // ✅ Règle 2 : Mettre à jour le statut automatiquement
+            $stock->statut = $stock->getStatutStock();
+            $stock->save();
+
             DB::commit();
+
             return response()->json([
                 'success' => true,
-                'message' => 'Service mis à jour avec succès',
-                'data' => $stock
+                'message' => 'Stock mis à jour avec succès',
+                'data' => $stock->fresh()
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -232,7 +213,7 @@ class StockController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur survenue lors de la mise à jour du service',
+                'message' => 'Erreur survenue lors de la mise à jour du stock',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -376,7 +357,7 @@ class StockController extends Controller
     public function statStock(): JsonResponse
     {
         try {
-           $userId = Auth::id();
+            $userId = Auth::id();
             $statStock = [
                 'total_produits_stock' => Stock::where('created_by', $userId)->count(),
                 'total_stock_disponible' => Stock::where('created_by', $userId)->StockDisponible()->count(),

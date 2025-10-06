@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -75,6 +76,13 @@ class Ventes extends Model
     public function scopeClient($query, $nomClient)
     {
         return $query->where('nom_client', 'like', "%{$nomClient}%");
+    }
+
+    public function scopeMesClients($query)
+    {
+        return $query->where('created_by', Auth::id())
+                     ->select('id', 'nom_client', 'numero', 'adresse')
+                     ->distinct(); // éviter les doublons si un client revient plusieurs fois
     }
 
     /** */
