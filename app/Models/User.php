@@ -23,6 +23,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'telephone',
         'adresse',
         'role',
+        'taux_commission',
         'password',
         'code_activation',
         'activate_at',
@@ -43,6 +44,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
     const ROLE_ADMIN = 'admin';
     const ROLE_EMPLOYE = 'employe';
+    const ROLE_INTERMEDIAIRE = 'intermediaire';
     // const ROLE_INTERMEDIAIRE = 'intermediaire';
 
     public function sendPasswordResetNotification($token)
@@ -100,10 +102,10 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->role === self::ROLE_EMPLOYE;
     }
 
-    // public function isIntermediaire(): bool
-    // {
-    //     return $this->role === self::ROLE_INTERMEDIAIRE;
-    // }
+    public function isIntermediaire(): bool
+    {
+        return $this->role === self::ROLE_INTERMEDIAIRE;
+    }
 
     public function recordLogin()
     {

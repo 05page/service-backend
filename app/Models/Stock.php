@@ -9,7 +9,6 @@ use Illuminate\Support\Str;
 
 class Stock extends Model
 {
-    //
     protected $table = "stock";
     protected $fillable = [
         'achat_id',
@@ -18,6 +17,8 @@ class Stock extends Model
         'categorie',
         'quantite',
         'quantite_min',
+        'entre_stock',
+        'sortie_stock',
         'prix_vente',
         'description',
         'statut',
@@ -31,34 +32,26 @@ class Stock extends Model
         'quantite_min' => 'integer'
     ];
 
-    // Constantes pour les seuils
     const STOCK_FAIBLE = 2;
     const STOCK_RUPTURE = 0;
 
-    /**
-     * Relation avec l'utilisateur qui a créé l'entrée stock
-     */
+    // Relations
     public function creePar(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    /**
-     * Relation avec le fournisseur de ce produit
-     */
-    // public function fournisseur(): BelongsTo
-    // {
-    //     return $this->belongsTo(Fournisseurs::class, 'fournisseur_id');
-    // }
+    public function achat()
+    {
+        return $this->belongsTo(Achats::class, 'achat_id');
+    }
 
-    /** fonction pour filtrer les produits */
-
+    // Scopes
     public function scopeActif($query)
     {
         return $query->where('actif', true);
     }
 
-     // Scope pour charger automatiquement l'achat
     public function scopeWithAchat($query)
     {
         return $query->with('achat:id,nom_service');
@@ -79,81 +72,65 @@ class Stock extends Model
         return $query->where('quantite', '>', 0);
     }
 
-    /**méthode helper */
+    public function scopeEntre($query)
+    {
+        return $query->where('entre_stock', '>', 0);
+    }
 
+    public function scopeSortie($query)
+    {
+        return $query->where('sortie_stock', '>', 0);
+    }
 
-    /** Vérifions si le produit est actif */
-
+    // Méthodes helpers
     public function isActif(): bool
     {
         return $this->actif;
     }
 
-    /**Verifions que le stock est disponible */
     public function isDisponible(): bool
     {
         return $this->actif && $this->quantite > 0;
     }
 
-    /**Vérifions que le stock est faible */
     public function isFaible(): bool
     {
         return $this->quantite <= self::STOCK_FAIBLE;
     }
-    /** verifions que le stocks est en repture */
 
     public function isStockRupture(): bool
     {
         return $this->quantite == self::STOCK_RUPTURE;
     }
 
-    /**Désactiver le produit */
-    public function desactiver(): bool
+    public function getStockActuel(): int
     {
-        $this->actif = false;
-        return $this->save();
-    }
-
-    /**Activer le produit */
-    public function reactiver(): bool
-    {
-        $this->actif = true;
-        return $this->save();
-    }
-
-    public function retirerStock(int $quantite): bool
-    {
-        if ($quantite <= 0 || $this->quantite < $quantite) {
-            return false;
-        }
-
-        $this->quantite -= $quantite;
-        $this->statut = $this->getStatutStock();
-        $this->actif = $this->quantite > 0;
-        return $this->save();
+        return $this->entre_stock - $this->sortie_stock;
     }
 
     public function addStock(int $quantite): bool
     {
-        if ($quantite <= 0) {
-            return false;
-        }
-
-        $this->quantite += $quantite;
-        return $this->save();
+        $this->increment('entre_stock', $quantite);
+        $this->increment('quantite', $quantite);
+        return true;
     }
 
-    /**Obtenir le statut du stock */
+    public function retirerStock(int $quantite): bool
+    {
+        $this->increment('sortie_stock', $quantite);
+        $this->decrement('quantite', $quantite);
+        $this->updateStatut();
+        return true;
+    }
+
     public function getStatutStock(): string
     {
         if ($this->quantite == 0) {
             return 'rupture';
         }
-
         if ($this->isFaible()) {
             return 'alerte';
         }
-
         return 'disponible';
     }
 
@@ -163,10 +140,23 @@ class Stock extends Model
         return $this->save();
     }
 
-    public function achat()
+    // ✅ NOUVEAU : Renouveler le stock via un nouvel achat
+    public function renouvelerStock(int $achatId, int $quantiteSupplementaire): bool
     {
-        // Un stock est lié à un seul achat
-        return $this->belongsTo(Achats::class, 'achat_id');
+        $nouvelAchat = Achats::find($achatId);
+        
+        if (!$nouvelAchat) {
+            return false;
+        }
+
+        // Ajouter la quantité au stock existant
+        $this->increment('entre_stock', $quantiteSupplementaire);
+        $this->increment('quantite', $quantiteSupplementaire);
+        
+        // Mettre à jour le statut
+        $this->updateStatut();
+        
+        return true;
     }
 
     protected static function boot()
@@ -178,7 +168,6 @@ class Stock extends Model
             $lastStock = self::whereYear('created_at', $year)->latest('id')->first();
             $lastNumber = $lastStock ? intval(substr($lastStock->code_produit, -3)) : 0;
             $nextNumber = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
-
             $stock->code_produit = "STCK-{$year}-{$nextNumber}";
         });
     }
@@ -191,16 +180,14 @@ class Stock extends Model
             'categorie' => $this->categorie,
             'quantite' => $this->quantite,
             'quantite_min' => $this->quantite_min,
+            'sortie_stock' => $this->sortie_stock,
+            'entre_stock' => $this->entre_stock,
             'prix_vente' => $this->prix_vente,
             'description' => $this->description,
             'statut' => $this->getStatutStock(),
             'actif' => $this->actif,
-
-            // Relations
-            'achat' => $this->achat?->nom_service, // grâce au belongsTo
+            'achat' => $this->achat?->nom_service,
             'cree_par' => $this->creePar?->fullname,
-
-            // Dates
             'created_at' => $this->created_at?->format('d/m/Y H:i')
         ];
     }

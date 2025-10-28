@@ -98,7 +98,7 @@ class AuthController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => "Vous n’avez pas le droit de vous connecter avec ce rôle"
-                ]);
+                ], 403);
             }
 
             if (!Auth::attempt($validateLogin)) {

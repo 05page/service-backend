@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Achats;
+use App\Models\Commission;
 use App\Models\Fournisseurs;
 use App\Models\Permissions;
 use App\Models\Stock;
@@ -30,6 +31,7 @@ class StatsController extends Controller
                     'total_ventes' => Ventes::Paye()->count(), // ventes payées
                     'ventes_en_attente' => Ventes::EnAttente()->count(),
                     'ventes_annule' => Ventes::Annule()->count(),
+                    'ventes_regles'=> Ventes::Regle()->count(),
                     'chiffres_affaire_total' => Ventes::Paye()->sum('prix_total'),
                     'chiffres_affaire_mois' => Ventes::Paye()
                         ->whereMonth('created_at', Carbon::now()->month)
@@ -47,6 +49,9 @@ class StatsController extends Controller
                     'total_prix_achats' => Achats::Reçu()->sum('prix_total'),
 
                     // Stock
+                    
+                    'total_entrees_stock'=> Stock::Entre()->sum('entre_stock'),
+                    'total_sorties_stock'=> Stock::Sortie()->sum('sortie_stock'),
                     'total_produits_stock' => Stock::where('actif', true)->count(),
                     'total_stock_disponible' => Stock::StockDisponible()->count(),
                     'total_stock_faible' => Stock::StockFaible()->count(),
@@ -56,6 +61,7 @@ class StatsController extends Controller
                 // ✅ Stats limitées pour employé
                 $allStats = [
                     'total_ventes' => Ventes::Paye()->where('created_by', $user->id)->count(),
+                    'ventes_regles'=>Ventes::Regle()->where('created_by', $user->id)->count(),
                     'ventes_en_attente' => Ventes::EnAttente()->where('created_by', $user->id)->count(),
                     'ventes_annule' => Ventes::Annule()->where('created_by', $user->id)->count(),
                     'chiffres_affaire_total' => Ventes::Paye()->where('created_by', $user->id)->sum('prix_total'),
@@ -112,9 +118,14 @@ class StatsController extends Controller
                 'nouveaux_fournisseurs_mois' => Fournisseurs::whereMonth('created_at', now()->month())->whereYear('created_at', now()->year())->count(),
 
                 //total stock
+                'total_entrees_stock'=> Stock::Entre()->sum('entre_stock'),
+                'total_sorties_stock'=> Stock::Sortie()->sum('sortie_stock'),
                 'total_produits_stock' => DB::table('stock')->where('actif', true)->count(),
                 'total_stock_faible' => Stock::StockFaible()->count(),
 
+                //Commission
+                'total_commissions_dues'=>Commission::CommissionsDues()->sum('commission_due'),
+                'total_commissions_reversees'=>Commission::CommissionsPayees()->sum('commission_due'),
                 //Revenu
                 'chiffres_affaire_total' => Ventes::Paye()->sum('prix_total'),
                 'chiffres_affaire_mois' => Ventes::Paye()

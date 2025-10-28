@@ -14,20 +14,29 @@ use Illuminate\Support\Facades\DB;
 
 class StockController extends Controller
 {
-    //
+    private function verifierPermissions()
+    {
+        $user = Auth::user();
+        if ($user->role !== User::ROLE_ADMIN) {
+            /** @var User $user */
+            $hasPermission = $user->permissions()
+                ->where('module', Permissions::MODULE_VENTES)
+                ->where('active', true)->exists();
+            if (!$hasPermission) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public function addStock(Request $request): JsonResponse
     {
         try {
-            $user = Auth::user();
-            if ($user->role !== User::ROLE_ADMIN) {
-                /** @var User $user */
-                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_STOCK)->where('active', true)->exists();
-                if (!$hasPermission) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Accès refusé. Vous n’avez pas la permission pour cette action."
-                    ], 403);
-                }
+            if (!$this->verifierPermissions()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Accès refusé. Vous n'avez pas la permission pour cette action."
+                ], 403);
             }
 
             $validate = $request->validate([
@@ -39,26 +48,29 @@ class StockController extends Controller
                 'description' => 'nullable|string|max:300',
             ]);
 
-            //On récupère
+            // Récupérer l'achat
             $achat = Achats::with('fournisseur')
                 ->where('id', $validate['achat_id'])
-                ->whereIn('statut', ['paye', 'reçu'])
+                ->whereIn('statut', [Achats::ACHAT_PAYE, Achats::ACHAT_REÇU])
                 ->doesntHave('stock')
                 ->first();
 
             if (!$achat) {
                 return response()->json([
                     'success' => false,
-                    'message' => "Cet achat n’est pas disponible (pas payé ou déjà lié à un stock).",
+                    'message' => "Cet achat n'est pas disponible (pas payé ou déjà lié à un stock).",
                 ], 404);
             }
 
             DB::beginTransaction();
+
             $stock = Stock::create([
                 'achat_id' => $validate['achat_id'],
                 'categorie' => $validate['categorie'] ?? null,
                 'quantite' => $validate['quantite'],
                 'quantite_min' => $validate['quantite_min'],
+                'entre_stock' => $validate['quantite'],
+                'sortie_stock' => 0,
                 'prix_vente' => $validate['prix_vente'],
                 'description' => $validate['description'] ?? null,
                 'actif' => true,
@@ -66,12 +78,11 @@ class StockController extends Controller
             ]);
 
             DB::commit();
+
             return response()->json([
                 'success' => true,
                 'message' => "Le stock a été ajouté avec succès",
-                'data' => [
-                    $stock
-                ]
+                'data' => $stock->load('achat')
             ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -80,29 +91,122 @@ class StockController extends Controller
                 'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur survenue lors de la création du stock',
                 'error' => $e->getMessage()
-            ], 500); // ✅ Code 500 pour erreur serveur
+            ], 500);
+        }
+    }
+
+    // ✅ NOUVEAU : Renouveler un stock existant
+    public function renouvelerStock(Request $request): JsonResponse
+    {
+        try {
+            if (!$this->verifierPermissions()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Accès refusé."
+                ], 403);
+            }
+
+            $validated = $request->validate([
+                'stock_id' => 'required|exists:stock,id',
+                'achat_id' => 'required|exists:achats,id',
+                'quantite' => 'required|integer|min:1',
+            ]);
+
+            DB::beginTransaction();
+
+            // Vérifier que l'achat est valide et non lié à un autre stock
+            $achat = Achats::where('id', $validated['achat_id'])
+                ->whereIn('statut', [Achats::ACHAT_PAYE, Achats::ACHAT_REÇU])
+                ->doesntHave('stock')
+                ->first();
+
+            if (!$achat) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => "Cet achat n'est pas disponible pour le renouvellement."
+                ], 404);
+            }
+
+            $stock = Stock::findOrFail($validated['stock_id']);
+
+            // Ajouter la quantité au stock existant
+            $stock->increment('entre_stock', $validated['quantite']);
+            $stock->increment('quantite', $validated['quantite']);
+            $stock->updateStatut();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Stock renouvelé avec succès",
+                'data' => $stock->fresh()->load('achat')
+            ], 200);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "Erreur de validation",
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur survenue lors du renouvellement',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // ✅ NOUVEAU : Obtenir les stocks en rupture ou faibles pour renouvellement
+    public function stocksARenouveler(): JsonResponse
+    {
+        try {
+            if (!$this->verifierPermissions()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Accès refusé."
+                ], 403);
+            }
+
+            // Récupérer les stocks en rupture ou faibles
+            $stocks = Stock::with(['achat:id,nom_service,fournisseur_id', 'achat.fournisseur:id,nom_fournisseurs'])
+                ->where(function ($query) {
+                    $query->where('quantite', '<=', Stock::STOCK_FAIBLE)
+                          ->orWhere('quantite', '=', Stock::STOCK_RUPTURE);
+                })
+                ->where('actif', true)
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $stocks,
+                'message' => "Stocks à renouveler récupérés avec succès"
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur survenue',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
     public function showStocks(Request $request): JsonResponse
     {
         try {
-            $user = Auth::user();
-
-            if ($user->role !== User::ROLE_ADMIN) {
-                /** @var User $user */
-                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_STOCK)->where('active', true)->exists();
-                if (!$hasPermission) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Accès refusé. Vous n’avez pas la permission pour cette action."
-                    ], 403);
-                }
+            if (!$this->verifierPermissions()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Accès refusé. Vous n'avez pas la permission pour cette action."
+                ], 403);
             }
+
             $query = Stock::with(['creePar:id,fullname,email,role', 'achat:id,nom_service,prix_unitaire'])
                 ->select(
                     'id',
@@ -111,6 +215,8 @@ class StockController extends Controller
                     'categorie',
                     'quantite',
                     'quantite_min',
+                    'entre_stock',
+                    'sortie_stock',
                     'prix_vente',
                     'statut',
                     'actif',
@@ -118,7 +224,7 @@ class StockController extends Controller
                     'created_at'
                 );
 
-            //Filtrage par statut si fourni
+            // Filtrage par statut si fourni
             if ($request->filled('statut')) {
                 switch ($request->statut) {
                     case 'disponible':
@@ -152,19 +258,14 @@ class StockController extends Controller
     public function updateStock(Request $request, $id): JsonResponse
     {
         try {
-            $user = Auth::user();
-            if ($user->role !== User::ROLE_ADMIN) {
-                /** @var User $user */
-                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_STOCK)->where('active', true)->exists();
-                if (!$hasPermission) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Accès refusé. Vous n’avez pas la permission pour cette action."
-                    ], 403);
-                }
+            if (!$this->verifierPermissions()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Accès refusé. Vous n'avez pas la permission pour cette action."
+                ], 403);
             }
-            // ✅ Validation des entrées
-            $updateStock = $request->validate([
+
+            $validated = $request->validate([
                 'achat_id' => 'sometimes|required|exists:achats,id',
                 'categorie' => 'sometimes|nullable|string|max:300',
                 'quantite' => 'sometimes|required|integer|min:0',
@@ -175,13 +276,13 @@ class StockController extends Controller
 
             DB::beginTransaction();
 
-            // 🔍 Récupérer le stock et son achat lié
             $stock = Stock::findOrFail($id);
-            $achat = $stock->achat; // Relation définie dans ton modèle Stock
+            $achat = $stock->achat;
 
-            // ✅ Règle 1 : Vérifier que la quantité ≤ quantité de l'achat
-            if (isset($updateStock['quantite']) && $achat) {
-                if ($updateStock['quantite'] > $achat->quantite) {
+            // ✅ Vérifier que la quantité ≤ quantité de l'achat
+            if (isset($validated['quantite']) && $achat) {
+                if ($validated['quantite'] > $achat->quantite) {
+                    DB::rollBack();
                     return response()->json([
                         'success' => false,
                         'message' => "Impossible de définir une quantité de stock supérieure à la quantité achetée ({$achat->quantite})."
@@ -189,20 +290,19 @@ class StockController extends Controller
                 }
             }
 
-            // ✅ Mise à jour du stock
-            $stock->update($updateStock);
+            // Mise à jour du stock
+            $stock->update($validated);
 
-            // ✅ Règle 2 : Mettre à jour le statut automatiquement
-            $stock->statut = $stock->getStatutStock();
-            $stock->save();
+            // Mettre à jour le statut automatiquement
+            $stock->updateStatut();
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Stock mis à jour avec succès',
-                'data' => $stock->fresh()
-            ]);
+                'data' => $stock->fresh()->load('achat')
+            ], 200);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
@@ -222,28 +322,38 @@ class StockController extends Controller
     public function delete($id): JsonResponse
     {
         try {
-            $user = Auth::user();
-            if ($user->role !== User::ROLE_ADMIN) {
-                /** @var User $user */
-                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_SERVICES)->where('active', true)->exists();
-                if (!$hasPermission) {
-                    return response()->json([
-                        'success' => 'false',
-                        'message' => "Accès refusé. Vous n’avez pas la permission pour cette action."
-                    ], 403);
-                }
+            if (!$this->verifierPermissions()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Accès refusé. Vous n'avez pas la permission pour cette action."
+                ], 403);
             }
 
+            DB::beginTransaction();
+            
             $stock = Stock::findOrFail($id);
+            
+            // Vérifier si le stock est utilisé dans des ventes
+            if ($stock->sortie_stock > 0) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de supprimer ce stock car des articles ont déjà été vendus.'
+                ], 400);
+            }
+
             $stock->delete();
+            DB::commit();
+
             return response()->json([
                 'success' => true,
-                "message" => "Stock supprimé avec succès."
-            ]);
+                'message' => "Stock supprimé avec succès."
+            ], 200);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur survenue lors de la suppression de ce service',
+                'message' => 'Erreur survenue lors de la suppression',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -252,104 +362,34 @@ class StockController extends Controller
     public function deleteAll(): JsonResponse
     {
         try {
-            $user = Auth::user();
-            if ($user->role !== User::ROLE_ADMIN) {
-                /** @var User $user */
-                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_SERVICES)->where('active', true)->exists();
-                if (!$hasPermission) {
-                    return response()->json([
-                        'success' => 'false',
-                        'message' => "Accès refusé. Vous n’avez pas la permission pour cette action."
-                    ], 403);
-                }
+            if (!$this->verifierPermissions()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Accès refusé. Vous n'avez pas la permission pour cette action."
+                ], 403);
             }
 
-            $stock = Stock::query()->delete();
+            DB::beginTransaction();
+            
+            // Supprimer uniquement les stocks non utilisés (pas de ventes)
+            $stocksNonUtilises = Stock::where('sortie_stock', '=', 0)->get();
+            
+            foreach ($stocksNonUtilises as $stock) {
+                $stock->delete();
+            }
+
+            DB::commit();
+
             return response()->json([
                 'success' => true,
-                "message" => "Stocks supprimés avec succès."
-            ]);
+                'message' => "Stocks non utilisés supprimés avec succès."
+            ], 200);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur survenue lors de la suppression des services',
+                'message' => 'Erreur survenue lors de la suppression des stocks',
                 'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function desactiveStock($id): JsonResponse
-    {
-        try {
-            $user = Auth::user();
-            if ($user->role !== User::ROLE_ADMIN) {
-                /** @var User $user */
-                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_STOCK)->where('active', true)->exists();
-                if (!$hasPermission) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Accès refusé. Vous n’avez pas la permission pour cette action."
-                    ], 403);
-                }
-            }
-
-            $stock = Stock::findOrFail($id);
-            if (!$stock->isActif()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Cet article a déjà été désactivé"
-                ], 400);
-            }
-
-            $stock->desactiver();
-            return response()->json([
-                'success' => true,
-                'message' => "Cet article a été désactivé avec succès",
-                'data' => $stock
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => "Erreur survenue lors de la désactivation de cet article",
-                'errors' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function activeStock($id): JsonResponse
-    {
-        try {
-            $user = Auth::user();
-            if ($user->role !== User::ROLE_ADMIN) {
-                /** @var User $user */
-                $hasPermission = $user->permissions()->where('module', Permissions::MODULE_STOCK)->where('active', true)->exists();
-                if (!$hasPermission) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Accès refusé. Vous n’avez pas la permission pour cette action."
-                    ], 403);
-                }
-            }
-
-            $stock = Stock::findOrFail($id);
-            if ($stock->isActif()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Cet article a déjà été activé"
-                ], 400);
-            }
-
-            $stock->reactiver();
-            return response()->json([
-                'success' => true,
-                'message' => "Cet article a été réactivé avec succès",
-                'data' => $stock
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => "Erreur survenue lors de la réactivation de cet article",
-                'errors' => $e->getMessage()
             ], 500);
         }
     }
@@ -358,12 +398,15 @@ class StockController extends Controller
     {
         try {
             $userId = Auth::id();
+            
             $statStock = [
                 'total_produits_stock' => Stock::where('created_by', $userId)->count(),
-                'total_stock_disponible' => Stock::where('created_by', $userId)->StockDisponible()->count(),
-                'total_stock_faible' => Stock::where('created_by', $userId)->StockFaible()->count(),
-                'total_valeur_stock' => Stock::where('created_by', $userId)->StockDisponible()->sum('prix_vente'),
-
+                'total_stock_disponible' => Stock::where('created_by', $userId)->stockDisponible()->count(),
+                'total_stock_faible' => Stock::where('created_by', $userId)->stockFaible()->count(),
+                'total_stock_rupture' => Stock::where('created_by', $userId)->rupture()->count(),
+                'total_valeur_stock' => Stock::where('created_by', $userId)
+                    ->stockDisponible()
+                    ->sum(DB::raw('prix_vente * quantite')),
             ];
 
             return response()->json([

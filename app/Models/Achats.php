@@ -32,11 +32,6 @@ class Achats extends Model
     const ACHAT_PAYE = "paye";
     const ACHAT_ANNULE = "annule";
 
-    // const MODE_PAIMENT_VIREMENT = "virement";
-    // const MODE_PAIEMENT_ESPECES = "especes";
-    // const MODE_PAIEMENT_MOBILE_MONEY = "mobile_money";
-    //Relation 
-
     /**Relation avec l'utilisateur qui crée l'achat */
     public function creePar(): BelongsTo
     {
@@ -58,6 +53,11 @@ class Achats extends Model
     public function stocks()
     {
         return $this->hasMany(Stock::class, 'achat_id');
+    }
+
+    public function photos()
+    {
+        return $this->hasMany(AchatPhotos::class, 'achat_id');
     }
 
     /** Filtrer les achats */
@@ -113,15 +113,6 @@ class Achats extends Model
         return $this->prix_unitaire * $this->quantite;
     }
 
-    // public function impactStock(): bool{
-    //     return $this->stock->addStock($this->quantite);
-    // }
-
-    // public function annulStock():bool
-    // {
-    //     return $this->stock->retirerStock($this->quantite);
-    // }
-
     /**Marquer comme confirmer */
     public function marqueReçu(): bool
     {
@@ -155,7 +146,26 @@ class Achats extends Model
         return $this->save();
     }
 
-    // public function add
+    // ✅ NOUVEAU : Mettre à jour le stock lié automatiquement
+    public function mettreAJourStockLie(): void
+    {
+        $stock = $this->stock;
+
+        if ($stock) {
+            // Calculer la différence de quantité
+            $ancienneQuantite = $stock->quantite;
+            $nouvelleQuantite = $this->quantite;
+            $difference = $nouvelleQuantite - $ancienneQuantite;
+
+            // Mettre à jour le stock
+            $stock->quantite = $nouvelleQuantite;
+            $stock->entre_stock = $nouvelleQuantite;
+
+            // Mettre à jour le statut du stock
+            $stock->updateStatut();
+            $stock->save();
+        }
+    }
 
     protected static function boot()
     {
@@ -168,6 +178,13 @@ class Achats extends Model
             $nextNumber = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
 
             $achat->numero_achat = "ACH-{$year}-{$nextNumber}";
+        });
+
+        // ✅ AJOUTÉ : Mettre à jour le stock automatiquement
+        static::updated(function ($achat) {
+            if ($achat->wasChanged('quantite')) {
+                $achat->mettreAJourStockLie();
+            }
         });
     }
 

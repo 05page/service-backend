@@ -50,6 +50,7 @@ class AchatsController extends Controller
                 'date_livraison' => 'sometimes|required|date',
                 'statut' => 'sometimes|required',
                 'description' => 'sometimes|nullable',
+                'photos.*' => 'sometimes|image|mimes:jpeg,png,jpg,webp|max:2048'
             ]);
 
             DB::beginTransaction();
@@ -62,19 +63,29 @@ class AchatsController extends Controller
                 'date_commande' => $validated['date_commande'],
                 'date_livraison' => $validated['date_livraison'],
                 'statut' => $validated['statut'] ?? Achats::ACHAT_COMMANDE,
-                // 'mode_paiement' => $validated['mode_paiement'] ?? Achats::MODE_PAIEMENT_ESPECES,
                 'description' => $validated['description'] ?? null,
                 'created_by' => Auth::id()
             ]);
 
+            // 🔹 Enregistre d’abord l’achat pour avoir un ID
             $achat->prix_total = $achat->calculePrixTotal();
-
             $achat->save();
+
+            if ($request->hasFile('photos')) {
+                foreach ($request->file('photos') as $photo) {
+                    $filename = time() . '_' . uniqid() . '.' . $photo->getClientOriginalExtension();
+                    $path = $photo->storeAs('achats', $filename, 'public');
+
+                    $achat->photos()->create([
+                        'path' => 'storage/' . $path
+                    ]);
+                }
+            }
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'data' => $achat,
+                'data' => $achat->load('photos'),
                 'message' => "Achat crée avec succès"
             ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -107,7 +118,8 @@ class AchatsController extends Controller
 
             $query = Achats::with([
                 'creePar:id,fullname,email,role',
-                'fournisseur:id,nom_fournisseurs'
+                'fournisseur:id,nom_fournisseurs',
+                'photos:id,achat_id,path'
             ])->select(
                 'id',
                 'fournisseur_id',
@@ -123,7 +135,6 @@ class AchatsController extends Controller
                 'created_at'
             );
 
-            // 📌 Filtrage par statut (optionnel)
             if ($request->filled('statut')) {
                 switch ($request->statut) {
                     case 'commande':
@@ -143,6 +154,18 @@ class AchatsController extends Controller
 
             $getAchats = $query->orderBy('created_at', 'desc')->get();
 
+            // ✅ Transformer les chemins pour utiliser l'URL complète
+            $getAchats->transform(function ($achat) {
+                $achat->photos->transform(function ($photo) {
+                    // Supprimer 'storage/' du début si présent
+                    $cleanPath = str_replace('storage/', '', $photo->path);
+                    // Créer l'URL complète
+                    $photo->path = url('storage/' . $cleanPath);
+                    return $photo;
+                });
+                return $achat;
+            });
+
             return response()->json([
                 'success' => true,
                 'message' => "Les achats ont été récupérés avec succès",
@@ -157,60 +180,20 @@ class AchatsController extends Controller
         }
     }
 
-
-    // public function selectAchat($id): JsonResponse
-    // {
-    //     try {
-    //         if (!$this->verifierPermission()) {
-    //             return response()->json([
-    //                 'success' => false,
-    //                 'message' => "Accès refusé. Vous n'avez pas l'accès pour cette action"
-    //             ], 403);
-    //         }
-    //         $getAchat = Achats::with(['creePar:id,fullname,email,role', 'fournisseur:id,nom_fournisseurs'])->select(
-    //             'fournisseur_id',
-    //             'nom_service',
-    //             'quantite',
-    //             'prix_unitaire',
-    //             'prix_total',
-    //             'numero_achat',
-    //             'date_commande',
-    //             'date_livraison',
-    //             // 'mode_paiement',
-    //             'statut',
-    //             'created_by',
-    //             'created_at'
-    //         )->findOrFail($id);
-
-    //         return response()->json([
-    //             'success' => true,
-    //             'message' => "L'achat a été récupéré avec succès",
-    //             'data' => $getAchat
-    //         ], 200);
-    //     } catch (\Exception $e) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => "Erreur survenue lors de la récupérarion cet achat",
-    //             'errors' => $e->getMessage()
-    //         ], 500);
-    //     }
-    // }
-
     public function achatsDisponibles(): JsonResponse
     {
         try {
-
             if (!$this->verifierPermission()) {
                 return response()->json([
                     'success' => false,
-                    'message' => "Accès réfusé.Seul un employé ayant une permission peut effectuer cette tache",
+                    'message' => "Accès refusé",
                 ], 403);
             }
 
-            // Récupérer les achats payés qui ne sont pas encore attribués à un stock
+            // Récupérer les achats payés/reçus qui ne sont pas liés à un stock
             $achats = Achats::with(['fournisseur:id,nom_fournisseurs'])
-                ->where('statut', Achats::ACHAT_PAYE)
-                ->doesntHave('stock') // relation stock() à définir dans le modèle Achats
+                ->whereIn('statut', [Achats::ACHAT_PAYE, Achats::ACHAT_REÇU])
+                ->doesntHave('stock')
                 ->get();
 
             return response()->json([
@@ -221,7 +204,7 @@ class AchatsController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => "Erreur survenue lors de la récupération des achats disponibles",
+                'message' => "Erreur survenue lors de la récupération",
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -244,25 +227,35 @@ class AchatsController extends Controller
                 'prix_unitaire' => 'sometimes|required|numeric|min:0',
                 'date_commande' => 'sometimes|required|date',
                 'date_livraison' => 'sometimes|required|date',
-                'statut' => 'sometimes|required',
-                // 'mode_paiement' => ['sometimes', Rule::in([
-                //     Achats::MODE_PAIMENT_VIREMENT,
-                //     Achats::MODE_PAIEMENT_ESPECES
-                // ])],
+                'statut' => ['sometimes', Rule::in([
+                    Achats::ACHAT_COMMANDE,
+                    Achats::ACHAT_PAYE,
+                    Achats::ACHAT_REÇU
+                ])],
                 'description' => 'sometimes|nullable',
             ]);
 
             DB::beginTransaction();
             $updateAchat = Achats::findOrFail($id);
 
+            // ✅ Recalculer le prix_total si quantite ou prix_unitaire change
+            if (isset($validated['quantite']) || isset($validated['prix_unitaire'])) {
+                $quantite = $validated['quantite'] ?? $updateAchat->quantite;
+                $prixUnitaire = $validated['prix_unitaire'] ?? $updateAchat->prix_unitaire;
+                $validated['prix_total'] = $quantite * $prixUnitaire;
+            }
+
             $updateAchat->update($validated);
+
+            // ✅ Le stock sera mis à jour automatiquement via l'événement 'updated' du modèle
+
             DB::commit();
 
             return response()->json([
                 'success' => true,
                 'message' => "Achat mis à jour avec succès",
-                'data' => $updateAchat
-            ], 201);
+                'data' => $updateAchat->fresh()
+            ], 200);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
@@ -270,6 +263,7 @@ class AchatsController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => "Erreur survenue lors de la modification de l'achat",
@@ -284,30 +278,30 @@ class AchatsController extends Controller
             if (!$this->verifierPermission()) {
                 return response()->json([
                     'success' => false,
-                    'message' => "Accès réfusé"
+                    'message' => "Accès refusé"
                 ], 403);
             }
 
-            $reçu = Achats::findOrFails($id);
+            $reçu = Achats::findOrFail($id);
             if ($reçu->isReçu()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cet achat est déjà marqué comme confirmé'
+                    'message' => 'Cet achat est déjà marqué comme reçu'
                 ], 400);
             }
 
-            $reçu->marquePaye();
+            $reçu->marqueReçu();
             return response()->json([
                 'success' => true,
                 'message' => 'Achat marqué comme reçu',
                 'data' => $reçu
-            ], 201);
+            ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur est survenu survenue lors de la confirmation de l\'achat',
+                'message' => 'Erreur survenue lors de la confirmation de l\'achat',
                 'errors' => $e->getMessage()
-            ]);
+            ], 500);
         }
     }
 
@@ -349,30 +343,32 @@ class AchatsController extends Controller
             if (!$this->verifierPermission()) {
                 return response()->json([
                     'success' => false,
-                    'message' => "Accès réfusé"
+                    'message' => "Accès refusé"
                 ], 403);
             }
 
-            $annule = Achats::findOrFails($id);
-            if ($annule->isPaye()) {
+            $annule = Achats::findOrFail($id);
+
+            if ($annule->isPaye() || $annule->isReçu()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cet achat est déjà marqué comme payé'
+                    'message' => "Impossible d'annuler un achat déjà reçu/payé"
                 ], 400);
             }
 
-            $annule->marquePaye();
+            $annule->marqueAnnule();
 
             return response()->json([
-                'success' => false,
-                'message' => "Impossible d'anunuler un achat deja reçu/payé"
-            ]);
+                'success' => true,
+                'message' => "Achat annulé avec succès",
+                'data' => $annule
+            ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur est survenue',
                 'errors' => $e->getMessage()
-            ]);
+            ], 500);
         }
     }
 

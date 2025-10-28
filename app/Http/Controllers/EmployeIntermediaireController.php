@@ -37,6 +37,8 @@ class EmployeIntermediaireController extends Controller
                 'email' => 'required|email|unique:users,email',
                 'telephone' => 'required|string|max:10',
                 'adresse' => 'required|string|max:300',
+                'role'=> 'r',
+                'taux_commission' => 'sometimes|required|int|min:1',
                 // 'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()]
 
             ]);
@@ -50,6 +52,7 @@ class EmployeIntermediaireController extends Controller
                 'telephone' => $validateUser['telephone'],
                 'adresse' => $validateUser['adresse'],
                 'role' => User::ROLE_EMPLOYE,
+                'taux_commission'=>$validateUser['taux_commission'],
                 'active' => false,
                 'password' => $validateUser['password'] ?? null,
                 'created_by' => Auth::id(),
@@ -161,11 +164,13 @@ class EmployeIntermediaireController extends Controller
                 'fullname',
                 'email',
                 'telephone',
+                'role',
+                'taux_commission', 
                 'adresse',
                 'active',
                 'created_by',
                 'created_at'
-            )->where('role', User::ROLE_EMPLOYE)
+            )->where('role', [User::ROLE_EMPLOYE, User::ROLE_INTERMEDIAIRE])
                 ->get();
 
             return response()->json([

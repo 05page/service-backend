@@ -11,15 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        //
-        Schema::create('ventes', function(Blueprint $table){
+        Schema::create('paiements', function (Blueprint $table) {
             $table->id();
-            $table->string('reference')->unique();
-            $table->string('nom_client');
-            $table->string('numero');
-            $table->string('adresse')->nullable();
-            $table->decimal('prix_total', 10,2);
-            $table->enum('statut', ['en attente', 'paye', 'annule']);
+
+            // Clé polymorphe : peut pointer vers ventes, achats, commissions, etc.
+            $table->morphs('payable'); // crée payable_id et payable_type
+
+            $table->decimal('montant_verse', 10, 2);
+            $table->timestamp('date_paiement')->useCurrent();
+            $table->string('methode')->nullable(); // ex: "cash", "mobile money", "carte"
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
         });
@@ -30,7 +30,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        //
-        Schema::dropIfExists('ventes');
+        Schema::dropIfExists('paiements');
     }
 };

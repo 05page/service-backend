@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AchatsController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CommissionController;
 use App\Http\Controllers\EmployeIntermediaireController;
 use App\Http\Controllers\FacturesController;
 use App\Http\Controllers\FournisseurController;
@@ -84,6 +85,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/myStats', [VentesController::class, 'myStats']);
         Route::get('{id}', [VentesController::class, 'selectVente']);
         Route::put('{id}', [VentesController::class, 'update']);       // Modifier (edit_suppliers)
+        Route::put('/reglement/{id}', [VentesController::class, 'updateReglement']);
         Route::post('/validePaye/{id}', [VentesController::class, 'marquePayer']);       // Modifier (edit_suppliers)
         Route::post('/annuler/{id}', [VentesController::class, 'marqueAnnuler']);       // Modifier (edit_suppliers)
         Route::delete('{id}', [VentesController::class, 'deleteVente']);   // Supprimer (delete_suppliers)
@@ -92,7 +94,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('achat')->group(function () {
         Route::post('/', [AchatsController::class, 'createAchat']);
-         Route::get('/', [AchatsController::class, 'showAchats']);         // Voir détail (view_suppliers)
+        Route::get('/', [AchatsController::class, 'showAchats']);         // Voir détail (view_suppliers)
         Route::get('/stats', [AchatsController::class, 'statsAchat']);
         // Route::get('/myStats/{userdId}', [StatsController::class, 'myStats']);
         Route::get('{id}', [AchatsController::class, 'selectAchat']);
@@ -104,13 +106,20 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::prefix('factures')->group(function () {
-        // Génération directe PDF (workflow unique)
-        Route::get('/vente/{id}/pdf', [FacturesController::class, 'generateFacturePDFFromVente']);
-        Route::get('/achat/{id}/pdf', [FacturesController::class, 'generateFacturePDFFromAchat']);
+        Route::get('/vente/{id}/document', [FacturesController::class, 'genererDocumentVente']);
+        // ✅ Ajouter un paiement et générer un reçu automatiquement
+        Route::post('/ventes/{id}/paiement', [FacturesController::class, 'ajouterPaiement']);
+        // ✅ Forcer la génération d'une facture (vente soldée uniquement)
+        Route::get('/ventes/{id}/facture', [FacturesController::class, 'genererFacture']);
         
+        Route::get('/achat/{id}/pdf', [FacturesController::class, 'generateFacturePDFFromAchat']);
         // Consultation
         Route::get('/', [FacturesController::class, 'index']);
-        Route::get('/{id}', [FacturesController::class, 'show']);
     });
 
+    Route::prefix('commissions')->group(function () {
+        Route::post('/{id}', [CommissionController::class, 'PayeCommission']);
+        Route::get('/', [CommissionController::class, 'showCommission']);
+        Route::get('/mesCommissions', [CommissionController::class, 'mesCommissions']);
+    });
 });
