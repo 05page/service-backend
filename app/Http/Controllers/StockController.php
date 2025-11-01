@@ -51,6 +51,7 @@ class StockController extends Controller
             // Récupérer l'achat
             $achat = Achats::with('fournisseur')
                 ->where('id', $validate['achat_id'])
+                ->where('active', 1)
                 ->whereIn('statut', [Achats::ACHAT_PAYE, Achats::ACHAT_REÇU])
                 ->doesntHave('stock')
                 ->first();
@@ -95,69 +96,6 @@ class StockController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur survenue lors de la création du stock',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    // ✅ NOUVEAU : Renouveler un stock existant
-    public function renouvelerStock(Request $request): JsonResponse
-    {
-        try {
-            if (!$this->verifierPermissions()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Accès refusé."
-                ], 403);
-            }
-
-            $validated = $request->validate([
-                'stock_id' => 'required|exists:stock,id',
-                'achat_id' => 'required|exists:achats,id',
-                'quantite' => 'required|integer|min:1',
-            ]);
-
-            DB::beginTransaction();
-
-            // Vérifier que l'achat est valide et non lié à un autre stock
-            $achat = Achats::where('id', $validated['achat_id'])
-                ->whereIn('statut', [Achats::ACHAT_PAYE, Achats::ACHAT_REÇU])
-                ->doesntHave('stock')
-                ->first();
-
-            if (!$achat) {
-                DB::rollBack();
-                return response()->json([
-                    'success' => false,
-                    'message' => "Cet achat n'est pas disponible pour le renouvellement."
-                ], 404);
-            }
-
-            $stock = Stock::findOrFail($validated['stock_id']);
-
-            // Ajouter la quantité au stock existant
-            $stock->increment('entre_stock', $validated['quantite']);
-            $stock->increment('quantite', $validated['quantite']);
-            $stock->updateStatut();
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => "Stock renouvelé avec succès",
-                'data' => $stock->fresh()->load('achat')
-            ], 200);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => "Erreur de validation",
-                'errors' => $e->errors()
-            ], 422);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur survenue lors du renouvellement',
                 'error' => $e->getMessage()
             ], 500);
         }

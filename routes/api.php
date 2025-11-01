@@ -80,6 +80,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('ventes')->group(function () {
         Route::post('/', [VentesController::class, 'createVente']);
         Route::get('/', [VentesController::class, 'showVentes']);         // Voir détail (view_suppliers)
+        Route::get('/myVentes', [VentesController::class, 'showMyVentes']);         // Voir détail (view_suppliers)
         Route::get('/allStats', [StatsController::class, 'allStats']);
         Route::get('/client', [VentesController::class, 'client']);
         Route::get('/myStats', [VentesController::class, 'myStats']);

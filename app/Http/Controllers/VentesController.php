@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\Commission;
 use App\Models\Paiement;
 use App\Models\Permissions;
 use App\Models\Stock;
@@ -31,7 +32,7 @@ class VentesController extends Controller
         }
         return true;
     }
-    
+
     public function createVente(Request $request): JsonResponse
     {
         try {
@@ -225,7 +226,8 @@ class VentesController extends Controller
             $query = Ventes::with([
                 'creePar:id,fullname,email,role',
                 'items.stock.achat:id,nom_service',
-                'commissionnaire:id,fullname,taux_commission'
+                'commissionnaire:id,fullname,taux_commission',
+                'paiements:id,payable_id,montant_verse,date_paiement'
             ])->select(
                 'id',
                 'reference',
@@ -240,6 +242,111 @@ class VentesController extends Controller
                 'created_by',
                 'created_at'
             );
+
+            $ventes = $query->orderBy('created_at', 'desc')->get();
+
+            // ✅ Formater les données pour le frontend
+            $ventesFormatees = $ventes->map(function ($vente) {
+                return [
+                    'id' => $vente->id,
+                    'reference' => $vente->reference,
+                    'nom_client' => $vente->nom_client,
+                    'numero' => $vente->numero,
+                    'adresse' => $vente->adresse,
+                    'prix_total' => $vente->prix_total,
+                    'montant_verse' => $vente->montant_verse,
+                    'reste_a_payer' => $vente->montantRestant(),
+                    'reglement_statut' => $vente->reglement_statut,
+                    'est_soldee' => $vente->estSoldee(),
+                    'statut' => $vente->statut,
+                    'created_at' => $vente->created_at->format('d/m/Y H:i'),
+
+                    // ✅ Informations sur les articles
+                    'items' => $vente->items->map(function ($item) {
+                        return [
+                            'id' => $item->id,
+                            'stock_id' => $item->stock_id,
+                            'nom_produit' => $item->stock->achat->nom_service ?? 'Article',
+                            'code_produit' => $item->stock->code_produit ?? 'N/A',
+                            'quantite' => $item->quantite,
+                            'prix_unitaire' => $item->prix_unitaire,
+                            'sous_total' => $item->sous_total
+                        ];
+                    }),
+
+                    // Nombre total d'articles
+                    'nombre_articles' => $vente->items->count(),
+                    'total_quantite' => $vente->items->sum('quantite'),
+
+                    'paiements' => $vente->paiements->map(function ($paiement) {
+                        return [
+                            'id' => $paiement->id,
+                            'montant_verse' => $paiement->montant_verse,
+                            'date_paiement' => $paiement->date_paiement?->format('d/m/Y H:i'),
+                        ];
+                    }),
+                    // Commissionnaire
+                    'commissionnaire' => $vente->commissionnaire ? [
+                        'id' => $vente->commissionnaire->id,
+                        'nom' => $vente->commissionnaire->fullname,
+                        'taux_commission' => $vente->commissionnaire->taux_commission
+                    ] : null,
+
+                    // Créateur
+                    'cree_par' => [
+                        'id' => $vente->creePar->id,
+                        'nom' => $vente->creePar->fullname,
+                        'role' => $vente->creePar->role
+                    ]
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $ventesFormatees,
+                'message' => $user->role === User::ROLE_ADMIN
+                    ? "Toutes les ventes ont été récupérées avec succès"
+                    : "Vos ventes ont été récupérées avec succès"
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "Une erreur est survenue lors de la récupération des ventes",
+                'errors' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function showMyVentes(): JsonResponse
+    {
+        try {
+            $userId = Auth::id();
+            if (!$this->verifierPermissions()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès refusé. Vous n\'avez pas la permission pour cette action.'
+                ], 403);
+            }
+
+            // ✅ Charger les items au lieu du stock direct
+            $query = Ventes::with([
+                'creePar:id,fullname,email,role',
+                'items.stock.achat:id,nom_service',
+                'commissionnaire:id,fullname,taux_commission'
+            ])->select(
+                'id',
+                'reference',
+                'nom_client',
+                'numero',
+                'adresse',
+                'commissionaire',
+                'prix_total',
+                'montant_verse',
+                'reglement_statut',
+                'statut',
+                'created_by',
+                'created_at'
+            )->where('created_by', $userId);
 
             $ventes = $query->orderBy('created_at', 'desc')->get();
 
@@ -295,9 +402,7 @@ class VentesController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $ventesFormatees,
-                'message' => $user->role === User::ROLE_ADMIN
-                    ? "Toutes les ventes ont été récupérées avec succès"
-                    : "Vos ventes ont été récupérées avec succès"
+                'message' => "Vos ventes ont été récupérées avec succès"
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
@@ -336,7 +441,7 @@ class VentesController extends Controller
             DB::beginTransaction();
 
             $vente = Ventes::findOrFail($id);
-            
+
             if ($vente->isAnnule()) {
                 DB::rollBack();
                 return response()->json([
@@ -363,7 +468,7 @@ class VentesController extends Controller
                 $prixTotal = 0;
                 foreach ($validated['items'] as $item) {
                     $stock = Stock::find($item['stock_id']);
-                    
+
                     if (!$stock) {
                         DB::rollBack();
                         return response()->json([
@@ -396,7 +501,7 @@ class VentesController extends Controller
                 }
 
                 $validated['prix_total'] = $prixTotal;
-                
+
                 // Vérifier si la vente est maintenant soldée
                 if ($vente->montant_verse >= $prixTotal) {
                     $validated['reglement_statut'] = 1;
@@ -481,7 +586,7 @@ class VentesController extends Controller
                     'message' => "Désolé accès refusé"
                 ], 403);
             }
-            
+
             DB::beginTransaction();
             $vente = Ventes::findOrFail($id);
 
@@ -506,40 +611,6 @@ class VentesController extends Controller
         }
     }
 
-    public function deleteAll(): JsonResponse
-    {
-        try {
-            if (Auth::user()->role !== User::ROLE_ADMIN) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès refusé. Seul un admin peut supprimer toutes les ventes.'
-                ], 403);
-            }
-
-            DB::beginTransaction();
-            $ventes = Ventes::where('statut', '!=', Ventes::STATUT_ANNULE)->get();
-
-            foreach ($ventes as $vente) {
-                $vente->annuler();
-            }
-
-            Ventes::truncate();
-            DB::commit();
-            
-            return response()->json([
-                'success' => true,
-                'message' => "Les ventes ont été supprimées avec succès"
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur survenue lors de la suppression de toutes les ventes',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
     public function myStats(): JsonResponse
     {
         try {
@@ -549,7 +620,7 @@ class VentesController extends Controller
                 'ventes_en_attente' => Ventes::where('created_by', $userId)->EnAttente()->count(),
                 'ventes_paye' => Ventes::where('created_by', $userId)->Paye()->count(),
                 'ventes_annule' => Ventes::where('created_by', $userId)->Annule()->count(),
-                'chiffres_affaire_total' => Ventes::where('created_by', $userId)->Paye()->sum('montant_verse'),
+                'total_commissions' => Commission::where('user_id', Auth::id())->where('etat_commission', 1)->count(),
                 'mes_clients' => Ventes::where('created_by', $userId)->distinct("nom_client")->count("nom_client"),
             ];
 
@@ -583,6 +654,7 @@ class VentesController extends Controller
                 'adresse',
                 'commissionaire',
                 'montant_verse',
+                'created_at'
             )->where('statut', 'paye');
 
             if ($user->role === User::ROLE_EMPLOYE) {

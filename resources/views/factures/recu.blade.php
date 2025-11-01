@@ -1,17 +1,11 @@
-{{-- resources/views/factures/pdf.blade.php --}}
+{{-- resources/views/recu/pdf.blade.php --}}
 <!DOCTYPE html>
 <html lang="fr">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>
-        @if($type_document === 'recu')
-            Reçu {{ $recu->numero_recu }}
-        @else
-            Facture {{ $facture->numero_facture }}
-        @endif
-    </title>
+    <title>Reçu {{ $recu->numero_recu }}</title>
     <style>
         * {
             margin: 0;
@@ -24,6 +18,7 @@
             font-size: 12px;
             color: #333;
             line-height: 1.4;
+            position: relative;
         }
 
         .container {
@@ -31,6 +26,21 @@
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
+            position: relative;
+        }
+
+        /* Filigrane */
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 80px;
+            font-weight: bold;
+            color: rgba(5, 150, 105, 0.05);
+            z-index: -1;
+            white-space: nowrap;
+            pointer-events: none;
         }
 
         /* En-tête */
@@ -46,7 +56,7 @@
 
         .facture-title h1 {
             font-size: 32px;
-            color: #2563eb;
+            color: #059669;
             font-weight: bold;
             margin-bottom: 10px;
         }
@@ -108,7 +118,7 @@
             font-size: 14px;
             font-weight: bold;
             margin-bottom: 10px;
-            color: #2563eb;
+            color: #059669;
         }
 
         .billing-info h3.intermediaire {
@@ -120,8 +130,7 @@
             font-size: 11px;
         }
 
-        .client-name,
-        .fournisseur-name {
+        .client-name {
             font-size: 13px;
             font-weight: bold;
             color: #1f2937;
@@ -200,7 +209,7 @@
         }
 
         .totaux-table .total-final {
-            background-color: #2563eb;
+            background-color: #059669;
             color: white;
             font-weight: bold;
             font-size: 14px;
@@ -209,11 +218,13 @@
         .totaux-table .paiement-info {
             background-color: #dcfce7;
             color: #166534;
+            font-weight: bold;
         }
 
         .totaux-table .reste-payer {
             background-color: #fef3c7;
             color: #92400e;
+            font-weight: bold;
         }
 
         /* Footer */
@@ -233,42 +244,26 @@
             clear: both;
         }
 
-        /* Styles spécifiques selon le type */
-        .facture-vente .billing-info h3 {
-            color: #059669;
-        }
-
-        .facture-achat .billing-info h3 {
-            color: #dc2626;
-        }
-
         .prix-amount {
             font-weight: bold;
-            color: #059669;
-        }
-
-        /* Style pour reçu */
-        .recu-title h1 {
             color: #059669;
         }
     </style>
 </head>
 
 <body>
+    {{-- FILIGRANE --}}
+    <div class="watermark">
+        {{ $recu->numero_recu }}
+    </div>
+
     <div class="container">
 
         {{-- EN-TÊTE --}}
         <div class="header clearfix">
-            <div class="facture-title {{ $type_document === 'recu' ? 'recu-title' : '' }}">
-                <h1>{{ $type_document === 'recu' ? 'REÇU' : 'FACTURE' }}</h1>
-                <div class="facture-numero">
-                    N° 
-                    @if($type_document === 'recu')
-                        {{ $recu->numero_recu }}
-                    @else
-                        {{ $facture->numero_facture }}
-                    @endif
-                </div>
+            <div class="facture-title">
+                <h1>REÇU</h1>
+                <div class="facture-numero">N° {{ $recu->numero_recu }}</div>
                 <div class="facture-date">Date: {{ $date_generation }}</div>
             </div>
 
@@ -282,45 +277,27 @@
             </div>
         </div>
 
-        {{-- SECTION CLIENT/FOURNISSEUR --}}
+        {{-- SECTION CLIENT --}}
         <div class="billing-section clearfix">
-            @if($type_document === 'achat')
-                {{-- Facture d'ACHAT --}}
-                <div class="billing-info billing-left">
-                    <h3>FACTURÉ PAR:</h3>
-                    <div class="fournisseur-name">{{ $fournisseur['nom'] }}</div>
-                    @if(!empty($fournisseur['email']))
-                    <p>Email: {{ $fournisseur['email'] }}</p>
-                    @endif
-                    @if(!empty($fournisseur['telephone']))
-                    <p>Tél: {{ $fournisseur['telephone'] }}</p>
-                    @endif
-                    @if(!empty($fournisseur['adresse']))
-                    <p>Adresse: {{ $fournisseur['adresse'] }}</p>
-                    @endif
-                </div>
-            @else
-                {{-- Facture de VENTE ou REÇU --}}
-                <div class="billing-info billing-left">
-                    <h3>{{ $type_document === 'recu' ? 'PAIEMENT REÇU DE:' : 'FACTURÉ À:' }}</h3>
-                    <div class="client-name">{{ $client['nom'] }}</div>
-                    @if(!empty($client['telephone']))
-                    <p>Tél: {{ $client['telephone'] }}</p>
-                    @endif
-                    @if(!empty($client['adresse']))
-                    <p>Adresse: {{ $client['adresse'] }}</p>
-                    @endif
-                </div>
-
-                @if(isset($intermediaire) && $intermediaire)
-                <div class="billing-info">
-                    <h3 class="intermediaire">INTERMÉDIAIRE:</h3>
-                    <div class="client-name">{{ $intermediaire['nom'] ?? 'N/A' }}</div>
-                    @if(isset($intermediaire['commission']))
-                    <p class="commission">Commission: {{ number_format($intermediaire['commission'], 2, ',', ' ') }} Fcfa</p>
-                    @endif
-                </div>
+            <div class="billing-info billing-left">
+                <h3>PAIEMENT REÇU DE:</h3>
+                <div class="client-name">{{ $client['nom'] }}</div>
+                @if(!empty($client['telephone']))
+                <p>Tél: {{ $client['telephone'] }}</p>
                 @endif
+                @if(!empty($client['adresse']))
+                <p>Adresse: {{ $client['adresse'] }}</p>
+                @endif
+            </div>
+
+            @if(isset($intermediaire) && $intermediaire)
+            <div class="billing-info">
+                <h3 class="intermediaire">INTERMÉDIAIRE:</h3>
+                <div class="client-name">{{ $intermediaire['nom'] ?? 'N/A' }}</div>
+                @if(isset($intermediaire['commission']))
+                <p class="commission">Commission: {{ number_format($intermediaire['commission'], 2, ',', ' ') }} Fcfa</p>
+                @endif
+            </div>
             @endif
         </div>
 
@@ -330,11 +307,7 @@
                 <thead>
                     <tr>
                         <th style="width: 30%;">Description</th>
-                        @if($type_document === 'achat')
-                        <th style="width: 20%;">N° Achat</th>
-                        @else
                         <th style="width: 20%;">Code produit</th>
-                        @endif
                         <th style="width: 15%;" class="text-center">Quantité</th>
                         <th style="width: 20%;" class="text-right">Prix unitaire HT</th>
                         <th style="width: 25%;" class="text-right">Total HT</th>
@@ -348,14 +321,8 @@
                             <strong>{{ $article['description'] }}</strong>
                         </td>
                         <td>
-                            @if($type_document === 'achat')
-                                @if(isset($article['numero_achat']) && !empty($article['numero_achat']))
-                                <strong>{{ $article['numero_achat'] }}</strong>
-                                @endif
-                            @else
-                                @if(isset($article['code']) && !empty($article['code']))
-                                <strong>{{ $article['code'] }}</strong>
-                                @endif
+                            @if(isset($article['code']) && !empty($article['code']))
+                            <strong>{{ $article['code'] }}</strong>
                             @endif
                         </td>
 
@@ -377,28 +344,26 @@
                         <td class="text-right">{{ number_format($totaux['sous_total'], 2, ',', ' ') }} Fcfa</td>
                     </tr>
                     
-                    @if($type_document === 'recu')
-                        {{-- Informations spécifiques au REÇU --}}
-                        <tr class="paiement-info">
-                            <td class="total-label">Montant payé:</td>
-                            <td class="text-right"><strong>{{ number_format($paiement['montant_paye'], 2, ',', ' ') }} Fcfa</strong></td>
-                        </tr>
-                        <tr class="paiement-info">
-                            <td class="total-label">Montant cumulé:</td>
-                            <td class="text-right"><strong>{{ number_format($paiement['montant_cumule'], 2, ',', ' ') }} Fcfa</strong></td>
-                        </tr>
-                        <tr class="reste-payer">
-                            <td class="total-label">Reste à payer:</td>
-                            <td class="text-right"><strong>{{ number_format($paiement['reste_a_payer'], 2, ',', ' ') }} Fcfa</strong></td>
-                        </tr>
-                        <tr>
-                            <td class="total-label">Pourcentage payé:</td>
-                            <td class="text-right">{{ number_format($paiement['pourcentage_paye'], 2, ',', ' ') }}%</td>
-                        </tr>
-                    @endif
+                    {{-- Informations de paiement --}}
+                    <tr class="paiement-info">
+                        <td class="total-label">Montant payé:</td>
+                        <td class="text-right"><strong>{{ number_format($paiement['montant_paye'], 2, ',', ' ') }} Fcfa</strong></td>
+                    </tr>
+                    <tr class="paiement-info">
+                        <td class="total-label">Montant cumulé:</td>
+                        <td class="text-right"><strong>{{ number_format($paiement['montant_cumule'], 2, ',', ' ') }} Fcfa</strong></td>
+                    </tr>
+                    <tr class="reste-payer">
+                        <td class="total-label">Reste à payer:</td>
+                        <td class="text-right"><strong>{{ number_format($paiement['reste_a_payer'], 2, ',', ' ') }} Fcfa</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="total-label">Pourcentage payé:</td>
+                        <td class="text-right">{{ number_format($paiement['pourcentage_paye'], 2, ',', ' ') }}%</td>
+                    </tr>
 
                     <tr class="total-final">
-                        <td><strong>{{ $type_document === 'recu' ? 'MONTANT TOTAL:' : 'TOTAL:' }}</strong></td>
+                        <td><strong>MONTANT TOTAL:</strong></td>
                         <td class="text-right"><strong>{{ number_format($totaux['montant_total'], 2, ',', ' ') }} Fcfa</strong></td>
                     </tr>
                 </table>
@@ -407,14 +372,8 @@
 
         {{-- FOOTER --}}
         <div class="footer">
-            <p>{{ $type_document === 'recu' ? 'Reçu' : 'Facture' }} généré{{ $type_document === 'recu' ? '' : 'e' }} automatiquement le {{ $date_generation }}</p>
-            @if($type_document === 'achat')
-                <p>Facture d'achat - {{ $entreprise['nom'] }}</p>
-            @elseif($type_document === 'recu')
-                <p>{{ $entreprise['nom'] }} - Merci de votre paiement</p>
-            @else
-                <p>{{ $entreprise['nom'] }} - Merci de votre confiance</p>
-            @endif
+            <p>Reçu généré automatiquement le {{ $date_generation }}</p>
+            <p>{{ $entreprise['nom'] }} - Merci de votre paiement</p>
         </div>
 
     </div>

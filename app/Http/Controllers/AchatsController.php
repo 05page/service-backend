@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class AchatsController extends Controller
@@ -63,6 +64,7 @@ class AchatsController extends Controller
                 'date_commande' => $validated['date_commande'],
                 'date_livraison' => $validated['date_livraison'],
                 'statut' => $validated['statut'] ?? Achats::ACHAT_COMMANDE,
+                'active' => true,
                 'description' => $validated['description'] ?? null,
                 'created_by' => Auth::id()
             ]);
@@ -233,28 +235,77 @@ class AchatsController extends Controller
                     Achats::ACHAT_REÇU
                 ])],
                 'description' => 'sometimes|nullable',
+                'photos.*' => 'sometimes|image|mimes:jpeg,png,jpg,webp|max:2048',
+                'photos_to_delete' => 'sometimes|json', // IDs des photos à supprimer
             ]);
 
             DB::beginTransaction();
-            $updateAchat = Achats::findOrFail($id);
 
-            // ✅ Recalculer le prix_total si quantite ou prix_unitaire change
+            $achat = Achats::with('photos')->findOrFail($id);
+
+            // Gérer la suppression des photos
+            if ($request->has('photos_to_delete')) {
+                $photosToDelete = json_decode($request->photos_to_delete, true);
+
+                if (is_array($photosToDelete) && !empty($photosToDelete)) {
+                    foreach ($photosToDelete as $photoId) {
+                        $photo = $achat->photos()->find($photoId);
+
+                        if ($photo) {
+                            // Supprimer le fichier physique
+                            $filePath = str_replace('storage/', '', $photo->path);
+                            if (Storage::disk('public')->exists($filePath)) {
+                                Storage::disk('public')->delete($filePath);
+                            }
+
+                            // Supprimer l'enregistrement de la base de données
+                            $photo->delete();
+                        }
+                    }
+                }
+            }
+
+            // Vérifier le nombre total de photos après suppression
+            $currentPhotosCount = $achat->photos()->count();
+            $newPhotosCount = $request->hasFile('photos') ? count($request->file('photos')) : 0;
+
+            if (($currentPhotosCount + $newPhotosCount) > 4) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez avoir que 4 photos maximum',
+                ], 422);
+            }
+
+            // Recalcul du prix_total si changement de quantité ou de prix
             if (isset($validated['quantite']) || isset($validated['prix_unitaire'])) {
-                $quantite = $validated['quantite'] ?? $updateAchat->quantite;
-                $prixUnitaire = $validated['prix_unitaire'] ?? $updateAchat->prix_unitaire;
+                $quantite = $validated['quantite'] ?? $achat->quantite;
+                $prixUnitaire = $validated['prix_unitaire'] ?? $achat->prix_unitaire;
                 $validated['prix_total'] = $quantite * $prixUnitaire;
             }
 
-            $updateAchat->update($validated);
+            // Retirer photos_to_delete avant l'update
+            unset($validated['photos_to_delete']);
 
-            // ✅ Le stock sera mis à jour automatiquement via l'événement 'updated' du modèle
+            // Mettre à jour les champs simples
+            $achat->update($validated);
 
+            // Ajouter les nouvelles photos
+            if ($request->hasFile('photos')) {
+                foreach ($request->file('photos') as $photo) {
+                    $filename = time() . '_' . uniqid() . '.' . $photo->getClientOriginalExtension();
+                    $path = $photo->storeAs('achats', $filename, 'public');
+
+                    $achat->photos()->create([
+                        'path' => 'storage/' . $path
+                    ]);
+                }
+            }
             DB::commit();
-
             return response()->json([
                 'success' => true,
                 'message' => "Achat mis à jour avec succès",
-                'data' => $updateAchat->fresh()
+                'data' => $achat->fresh('photos')
             ], 200);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([

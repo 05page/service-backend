@@ -170,6 +170,12 @@ class Stock extends Model
             $nextNumber = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
             $stock->code_produit = "STCK-{$year}-{$nextNumber}";
         });
+
+        static::updating(function($stock){
+            if($stock->quantite == 0 && $stock->achat){
+                $stock->achat->update(['active'=>false]);
+            }
+        });
     }
 
     public function getResume(): array

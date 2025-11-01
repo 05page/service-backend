@@ -34,7 +34,6 @@ class Ventes extends Model
     const STATUT_ANNULE = 'annulé';
 
     // ========== RELATIONS ==========
-    
     public function items(): HasMany
     {
         return $this->hasMany(VenteItems::class, 'vente_id');
@@ -76,7 +75,6 @@ class Ventes extends Model
     }
 
     // ========== MÉTHODES DE VÉRIFICATION DU RÈGLEMENT ==========
-    
     public function estSoldee(): bool
     {
         return $this->montant_verse >= $this->prix_total;
@@ -101,7 +99,6 @@ class Ventes extends Model
     }
 
     // ========== MÉTHODES DE PAIEMENT ==========
-    
     public function ajouterPaiement(float $montant, $userId = null): bool
     {
         if ($montant <= 0) {
@@ -128,7 +125,6 @@ class Ventes extends Model
     }
 
     // ========== GESTION DES COMMISSIONS ==========
-    
     /**
      * Créer ou mettre à jour la commission pour cette vente
      */
@@ -171,7 +167,6 @@ class Ventes extends Model
     }
 
     // ========== SCOPES ==========
-    
     public function scopeEnAttente($query)
     {
         return $query->where('statut', self::STATUT_EN_ATTENTE);
@@ -203,7 +198,6 @@ class Ventes extends Model
     }
 
     // ========== MÉTHODES DE STATUT ==========
-    
     public function isEnAttente(): bool
     {
         return $this->statut === self::STATUT_EN_ATTENTE;
@@ -220,7 +214,6 @@ class Ventes extends Model
     }
 
     // ========== CALCULS ==========
-    
     public function calculerPrixTotal(): float
     {
         return $this->items()->sum('sous_total');
@@ -251,7 +244,6 @@ class Ventes extends Model
     }
 
     // ========== BOOT ==========
-    
     protected static function boot()
     {
         parent::boot();
@@ -286,7 +278,6 @@ class Ventes extends Model
     }
 
     // ========== MÉTHODES UTILITAIRES ==========
-    
     public function getResume(): array
     {
         return [

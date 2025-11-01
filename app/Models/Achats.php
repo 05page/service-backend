@@ -18,7 +18,7 @@ class Achats extends Model
         'date_commande',
         'date_livraison',
         'statut',
-        // 'mode_paiement',
+        'active',
         'description',
         'created_by'
     ];

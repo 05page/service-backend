@@ -24,7 +24,7 @@ class AppServiceProvider extends ServiceProvider
         Relation:: morphMap([
         'vente'=> \App\Models\Ventes::class,
         'achat' => \App\Models\Achats::class,
-        // 'commission' => \App\Models\Commission::class,
+        'commission' => \App\Models\Commission::class,
         ]);
     }
 }

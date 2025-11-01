@@ -39,7 +39,6 @@ class Commission extends Model
         return $this->morphMany(Paiement::class, 'payable');
     }
 
-    //Scopes
     //Commission en attente
     public function scopeAttente($query)
     {
@@ -63,7 +62,6 @@ class Commission extends Model
     {
         return $query->where('etat_commission', 1);
     }
-
 
     public function getResume(): array
     {

@@ -63,6 +63,7 @@ class FacturesController extends Controller
             ], 500);
         }
     }
+
     private function getEntrepriseInfo(): array
     {
         return [
@@ -74,6 +75,7 @@ class FacturesController extends Controller
             'siret' => config('app.entreprise_siret', 'XXX XXX XXX XXXXX')
         ];
     }
+
     private function genererFacture(Ventes $vente)
     {
         if (!$vente->estSoldee()) {
@@ -83,36 +85,44 @@ class FacturesController extends Controller
             ], 422);
         }
 
-        // Vérifier si facture existe déjà
-        $factureExistante = Factures::where('vente_id', $vente->id)->first();
-        if ($factureExistante) {
-            return $this->telechargerFacture($factureExistante, $vente);
-        }
-
         DB::beginTransaction();
 
         try {
-            // Créer la facture
+            // ✅ Vérifier si facture existe déjà
+            $factureExistante = Factures::where('vente_id', $vente->id)->first();
+            
+            if ($factureExistante) {
+                // ✅ Incrémenter le compteur de copies
+                $factureExistante->increment('nombre_copies');
+                $nombreCopies = $factureExistante->nombre_copies;
+                
+                DB::commit();
+                return $this->telechargerFacture($factureExistante, $vente, $nombreCopies);
+            }
+
+            // ✅ Créer la facture pour la première fois (ORIGINAL)
             $facture = Factures::create([
                 'vente_id' => $vente->id,
                 'created_by' => Auth::id(),
+                'nombre_copies' => 0, // 0 = ORIGINAL
             ]);
 
             DB::commit();
 
-            return $this->telechargerFacture($facture, $vente);
+            return $this->telechargerFacture($facture, $vente, 0);
         } catch (\Exception $e) {
             DB::rollBack();
             throw $e;
         }
     }
 
-    private function telechargerFacture(Factures $facture, Ventes $vente)
+    private function telechargerFacture(Factures $facture, Ventes $vente, int $nombreCopies = 0)
     {
         $donneesFacture = [
             'facture' => $facture,
             'vente' => $vente,
             'type_document' => 'facture',
+            'statut_copie' => $nombreCopies === 0 ? 'ORIGINAL' : "COPIE N°{$nombreCopies}",
             'client' => [
                 'nom' => $vente->nom_client,
                 'telephone' => $vente->numero,
@@ -120,7 +130,7 @@ class FacturesController extends Controller
             ],
             'articles' => $vente->items->map(function ($item) {
                 return [
-                    'description' => $item->stock->nom_produit ?? 'Article',
+                    'description' => $item->stock->achat->nom_service ?? 'Article',
                     'code' => $item->stock->code_produit ?? 'N/A',
                     'quantite' => $item->quantite,
                     'prix_unitaire' => $item->prix_unitaire,
@@ -133,23 +143,23 @@ class FacturesController extends Controller
                 'montant_verse' => $vente->montant_verse,
                 'reste_a_payer' => 0
             ],
-            'intermediaire' => $vente->commissionnaire ? [
-                'nom' => $vente->commissionnaire->fullname,
-                'commission' => ($vente->prix_total * $vente->commissionnaire->taux_commission) / 100
-            ] : null,
             'entreprise' => $this->getEntrepriseInfo(),
             'date_generation' => now()->format('d/m/Y')
         ];
 
         $pdf = Pdf::loadView('factures.pdf', $donneesFacture)
-            ->setPaper('A4', 'portrait')
+            ->setPaper('A4', 'landscape')
             ->setOptions([
                 'isHtml5ParserEnabled' => true,
                 'isPhpEnabled' => true,
                 'defaultFont' => 'Arial',
             ]);
 
-        return $pdf->download("{$facture->numero_facture}.pdf");
+        $nomFichier = $nombreCopies === 0 
+            ? "{$facture->numero_facture}.pdf" 
+            : "{$facture->numero_facture}_COPIE_{$nombreCopies}.pdf";
+
+        return $pdf->download($nomFichier);
     }
 
     private function genererRecu(Ventes $vente)
@@ -167,7 +177,19 @@ class FacturesController extends Controller
             // Récupérer le dernier paiement
             $dernierPaiement = $vente->paiements()->latest()->first();
 
-            // Créer le reçu
+            // ✅ Vérifier si un reçu existe déjà pour cette vente
+            $recuExistant = Recus::where('vente_id', $vente->id)->first();
+
+            if ($recuExistant) {
+                // ✅ Incrémenter le compteur de copies
+                $recuExistant->increment('nombre_copies');
+                $nombreCopies = $recuExistant->nombre_copies;
+                
+                DB::commit();
+                return $this->telechargerRecu($recuExistant, $vente, $nombreCopies);
+            }
+
+            // ✅ Créer le reçu pour la première fois (ORIGINAL)
             $recu = Recus::create([
                 'vente_id' => $vente->id,
                 'paiement_id' => $dernierPaiement->id ?? null,
@@ -175,23 +197,25 @@ class FacturesController extends Controller
                 'montant_cumule' => $vente->montant_verse,
                 'reste_a_payer' => $vente->montantRestant(),
                 'created_by' => Auth::id(),
+                'nombre_copies' => 0, // 0 = ORIGINAL
             ]);
 
             DB::commit();
 
-            return $this->telechargerRecu($recu, $vente);
+            return $this->telechargerRecu($recu, $vente, 0);
         } catch (\Exception $e) {
             DB::rollBack();
             throw $e;
         }
     }
 
-    private function telechargerRecu(Recus $recu, Ventes $vente)
+    private function telechargerRecu(Recus $recu, Ventes $vente, int $nombreCopies = 0)
     {
         $donneesRecu = [
             'recu' => $recu,
             'vente' => $vente,
             'type_document' => 'recu',
+            'statut_copie' => $nombreCopies === 0 ? 'ORIGINAL' : "COPIE N°{$nombreCopies}",
             'client' => [
                 'nom' => $vente->nom_client,
                 'telephone' => $vente->numero,
@@ -199,7 +223,7 @@ class FacturesController extends Controller
             ],
             'articles' => $vente->items->map(function ($item) {
                 return [
-                    'description' => $item->stock->nom_produit ?? 'Article',
+                    'description' => $item->stock->achat->nom_service ?? 'Article',
                     'code' => $item->stock->code_produit ?? 'N/A',
                     'quantite' => $item->quantite,
                     'prix_unitaire' => $item->prix_unitaire,
@@ -226,15 +250,19 @@ class FacturesController extends Controller
             'date_generation' => now()->format('d/m/Y')
         ];
 
-        $pdf = Pdf::loadView('factures.document-pdf', $donneesRecu)
-            ->setPaper('A4', 'portrait')
+        $pdf = Pdf::loadView('factures.pdf', $donneesRecu)
+            ->setPaper('A4', 'landscape')
             ->setOptions([
                 'isHtml5ParserEnabled' => true,
                 'isPhpEnabled' => true,
                 'defaultFont' => 'Arial',
             ]);
 
-        return $pdf->download("{$recu->numero_recu}.pdf");
+        $nomFichier = $nombreCopies === 0 
+            ? "{$recu->numero_recu}.pdf" 
+            : "{$recu->numero_recu}_COPIE_{$nombreCopies}.pdf";
+
+        return $pdf->download($nomFichier);
     }
 
     /**
@@ -265,69 +293,38 @@ class FacturesController extends Controller
                 ], 422);
             }
 
-            // Vérification facture existante
-            $factureExistante = Factures::where('achat_id', $achatId)->first();
-            if ($factureExistante) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Une facture existe déjà pour cet achat : {$factureExistante->numero_facture}"
-                ], 422);
-            }
-
             DB::beginTransaction();
 
-            // Création de la facture en base
+            // ✅ Vérification facture existante
+            $factureExistante = Factures::where('achat_id', $achatId)->first();
+            
+            if ($factureExistante) {
+                // ✅ Incrémenter le compteur de copies
+                $factureExistante->increment('nombre_copies');
+                $nombreCopies = $factureExistante->nombre_copies;
+                
+                DB::commit();
+                
+                // Préparation des données pour le PDF
+                $donneesFacture = $this->preparerDonneesFactureAchat($factureExistante, $achat, $nombreCopies);
+                
+                return $this->telechargerFactureAchat($factureExistante, $donneesFacture, $nombreCopies);
+            }
+
+            // ✅ Création de la facture en base (ORIGINAL)
             $facture = Factures::create([
                 'achat_id' => $achatId,
                 'created_by' => Auth::id(),
+                'nombre_copies' => 0, // 0 = ORIGINAL
             ]);
 
             DB::commit();
 
             // Préparation des données pour le PDF
-            $donneesFacture = [
-                'facture' => $facture,
-                'achat' => $achat,
-                'type_document' => 'achat',
-                'fournisseur' => [
-                    'nom' => $achat->fournisseur->nom_fournisseurs,
-                    'email' => $achat->fournisseur->email,
-                    'telephone' => $achat->fournisseur->telephone,
-                    'adresse' => $achat->fournisseur->adresse
-                ],
-                'articles' => [
-                    [
-                        'description' => $achat->nom_service,
-                        'numero_achat' => $achat->numero_achat,
-                        'quantite' => $achat->quantite,
-                        'prix_unitaire' => $achat->prix_unitaire,
-                        'total' => $achat->prix_total
-                    ]
-                ],
-                'totaux' => [
-                    'sous_total' => $achat->prix_total,
-                    'montant_total' => $achat->prix_total
-                ],
-                'entreprise' => $this->getEntrepriseInfo(),
-                'date_generation' => now()->format('d/m/Y')
-            ];
-
-            // Génération du PDF avec DomPDF
-            $pdf = Pdf::loadView('factures.pdf', $donneesFacture)
-                ->setPaper('A4', 'landscape')
-                ->setOptions([
-                    'isHtml5ParserEnabled' => true,
-                    'isPhpEnabled' => true,
-                    'defaultFont' => 'Arial',
-                    'margin-top' => 10,
-                    'margin-bottom' => 10,
-                    'margin-left' => 10,
-                    'margin-right' => 10,
-                ]);
-
-            $nomFichier = "{$facture->numero_facture}.pdf";
-
-            return $pdf->download($nomFichier);
+            $donneesFacture = $this->preparerDonneesFactureAchat($facture, $achat, 0);
+            
+            return $this->telechargerFactureAchat($facture, $donneesFacture, 0);
+            
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
@@ -341,6 +338,58 @@ class FacturesController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    private function preparerDonneesFactureAchat(Factures $facture, Achats $achat, int $nombreCopies = 0): array
+    {
+        return [
+            'facture' => $facture,
+            'achat' => $achat,
+            'type_document' => 'achat',
+            'statut_copie' => $nombreCopies === 0 ? 'ORIGINAL' : "COPIE N°{$nombreCopies}",
+            'fournisseur' => [
+                'nom' => $achat->fournisseur->nom_fournisseurs,
+                'email' => $achat->fournisseur->email,
+                'telephone' => $achat->fournisseur->telephone,
+                'adresse' => $achat->fournisseur->adresse
+            ],
+            'articles' => [
+                [
+                    'description' => $achat->nom_service,
+                    'numero_achat' => $achat->numero_achat,
+                    'quantite' => $achat->quantite,
+                    'prix_unitaire' => $achat->prix_unitaire,
+                    'total' => $achat->prix_total
+                ]
+            ],
+            'totaux' => [
+                'sous_total' => $achat->prix_total,
+                'montant_total' => $achat->prix_total
+            ],
+            'entreprise' => $this->getEntrepriseInfo(),
+            'date_generation' => now()->format('d/m/Y')
+        ];
+    }
+
+    private function telechargerFactureAchat(Factures $facture, array $donneesFacture, int $nombreCopies = 0)
+    {
+        $pdf = Pdf::loadView('factures.pdf', $donneesFacture)
+            ->setPaper('A4', 'landscape')
+            ->setOptions([
+                'isHtml5ParserEnabled' => true,
+                'isPhpEnabled' => true,
+                'defaultFont' => 'Arial',
+                'margin-top' => 10,
+                'margin-bottom' => 10,
+                'margin-left' => 10,
+                'margin-right' => 10,
+            ]);
+
+        $nomFichier = $nombreCopies === 0 
+            ? "{$facture->numero_facture}.pdf" 
+            : "{$facture->numero_facture}_COPIE_{$nombreCopies}.pdf";
+
+        return $pdf->download($nomFichier);
     }
 
     public function index(): JsonResponse

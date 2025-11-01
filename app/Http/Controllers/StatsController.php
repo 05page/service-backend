@@ -104,7 +104,7 @@ class StatsController extends Controller
                 'total_ventes' => Ventes::count(),
 
                 //Total personnels
-                'total_employe' => User::where('role', User::ROLE_EMPLOYE)->count(),
+                'total_employe' => User::whereIn('role', [User::ROLE_EMPLOYE, User::ROLE_INTERMEDIAIRE])->count(),
                 'total_employe_inactifs' => User::where('role', User::ROLE_EMPLOYE)->where('active', false)->count(),
                 'total_employe_actif' => User::where('role', User::ROLE_EMPLOYE)->where('active', true)->count(),
                 'total_ventes_employes' => Ventes::whereHas('creePar', function ($query) {

@@ -9,6 +9,7 @@ use User;
 class Recus extends Model
 {
     //
+    protected $table = 'recus';
     protected $fillable = [
         'numero_recu',
         'vente_id',

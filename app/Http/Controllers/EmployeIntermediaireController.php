@@ -37,39 +37,59 @@ class EmployeIntermediaireController extends Controller
                 'email' => 'required|email|unique:users,email',
                 'telephone' => 'required|string|max:10',
                 'adresse' => 'required|string|max:300',
-                'role'=> 'r',
+                'role' => [
+                    'required',
+                    Rule::in([
+                        User::ROLE_EMPLOYE,
+                        User::ROLE_INTERMEDIAIRE
+                    ])
+                ],
                 'taux_commission' => 'sometimes|required|int|min:1',
-                // 'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()]
-
             ]);
 
             DB::beginTransaction();
 
-            // Créer l'employé/intermédiaire
-            $employeIntermediaire = User::create([
-                'fullname' => $validateUser['fullname'],
-                'email' => $validateUser['email'],
-                'telephone' => $validateUser['telephone'],
-                'adresse' => $validateUser['adresse'],
-                'role' => User::ROLE_EMPLOYE,
-                'taux_commission'=>$validateUser['taux_commission'],
-                'active' => false,
-                'password' => $validateUser['password'] ?? null,
-                'created_by' => Auth::id(),
-            ]);
-
-            // Envoyer l'email avec le code d'activation
-            $this->sendActivationEmail($employeIntermediaire);
+            if ($validateUser['role'] === User::ROLE_INTERMEDIAIRE) {
+                // Cas INTERMÉDIAIRE
+                $employeIntermediaire = User::create([
+                    'fullname' => $validateUser['fullname'],
+                    'email' => $validateUser['email'],
+                    'telephone' => $validateUser['telephone'],
+                    'adresse' => $validateUser['adresse'],
+                    'role' => User::ROLE_INTERMEDIAIRE,
+                    'taux_commission' => $validateUser['taux_commission'] ?? null,
+                    'activation_code' => null,
+                    'email_verified_at' => now(),
+                    'active' => true,
+                    'password' => $validateUser['password'] ?? null,
+                    'created_by' => Auth::id(),
+                ]);
+            } else {
+                // Créer l'employé/intermédiaire
+                $employeIntermediaire = User::create([
+                    'fullname' => $validateUser['fullname'],
+                    'email' => $validateUser['email'],
+                    'telephone' => $validateUser['telephone'],
+                    'adresse' => $validateUser['adresse'],
+                    'role' => User::ROLE_EMPLOYE,
+                    'taux_commission' => $validateUser['taux_commission'],
+                    'active' => false,
+                    'password' => $validateUser['password'] ?? null,
+                    'created_by' => Auth::id(),
+                ]);
+            }
 
             DB::commit();
-
+            $message = $validateUser['role'] === User::ROLE_INTERMEDIAIRE
+                ? 'Intermédiaire ajouté avec succès.'
+                : 'Employé ajouté avec succès. Un email d’activation a lui a été envoyé.';
             return response()->json([
                 'success' => true,
                 'data' => [
                     'employe_intermediaire' => $employeIntermediaire->load('createdBy'),
                     'code_activation' => $employeIntermediaire->code_activation, // Pour les tests
                 ],
-                'message' => 'Employé créé avec succès. Un email d\'activation a été envoyé.'
+                'message' => $message
             ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollBack();
@@ -89,10 +109,7 @@ class EmployeIntermediaireController extends Controller
     }
 
     /**
-     * Activer un compte avec le code reçu par email
-     */
-    /**
-     * Activer un compte employé/intermédiaire avec le code reçu par email
+     * Activer un compte employé avec le code reçu par email
      */
     public function activateAccount(Request $request): JsonResponse
     {
@@ -165,48 +182,13 @@ class EmployeIntermediaireController extends Controller
                 'email',
                 'telephone',
                 'role',
-                'taux_commission', 
+                'taux_commission',
                 'adresse',
                 'active',
                 'created_by',
                 'created_at'
-            )->where('role', [User::ROLE_EMPLOYE, User::ROLE_INTERMEDIAIRE])
+            )->whereIn('role', [User::ROLE_EMPLOYE, User::ROLE_INTERMEDIAIRE])
                 ->get();
-
-            return response()->json([
-                'success' => true,
-                'data' => $employesIntermediaires
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur survenue lors de la récupération des données',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function show($id): JsonResponse
-    {
-        try {
-            if (Auth::user()->role !== User::ROLE_ADMIN) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès refusé.'
-                ], 403);
-            }
-
-            $employesIntermediaires = User::select(
-                'id',
-                'fullname',
-                'email',
-                'telephone',
-                'adresse',
-                'active',
-                'created_by',
-                'created_at'
-            )->where('role', User::ROLE_EMPLOYE)
-                ->findOrFail($id);
 
             return response()->json([
                 'success' => true,
@@ -236,7 +218,6 @@ class EmployeIntermediaireController extends Controller
         }
     }
 
-
     public function updateEmploye(Request $request, $id): JsonResponse
     {
         try {
@@ -247,11 +228,15 @@ class EmployeIntermediaireController extends Controller
                 ], 403);
             }
             $employeUpdate = $request->validate([
-                'type' => 'sometimes|required|string|max:300',
-                'fullname' => 'sometimes|required|string|max:300',
-                'email' => 'sometimes|required|email',
-                'telephone' => 'sometimes|required|string|max:10',
-                'adresse' => 'sometimes|required|string|max:300'
+                'type' => ['sometimes', 'required', 'string', 'max:300'],
+                'fullname' => ['sometimes', 'required', 'string', 'max:300'],
+                'email' => ['sometimes', 'required', 'email'],
+                'telephone' => ['sometimes', 'required', 'string', 'max:10'],
+                'adresse' => ['sometimes', 'required', 'string', 'max:300'],
+                'role' => ['sometimes', 'required', Rule::in([
+                    User::ROLE_EMPLOYE,
+                    User::ROLE_INTERMEDIAIRE
+                ])],
             ]);
 
             DB::beginTransaction();
@@ -263,7 +248,7 @@ class EmployeIntermediaireController extends Controller
             DB::commit();
             return response()->json([
                 'success' => true,
-                'message' => 'Compte mis à jour avec succès',
+                'message' => 'Personnel mis à jour avec succès mis à jour avec succès',
                 'data' => $employe
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
