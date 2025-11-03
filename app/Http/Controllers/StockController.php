@@ -145,7 +145,7 @@ class StockController extends Controller
                 ], 403);
             }
 
-            $query = Stock::with(['creePar:id,fullname,email,role', 'achat:id,nom_service,prix_unitaire'])
+            $query = Stock::with(['creePar:id,fullname,email,role', 'achat:id,nom_service,prix_unitaire', 'achat.photos'])
                 ->select(
                     'id',
                     'achat_id',

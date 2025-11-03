@@ -38,6 +38,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/dashboard', [StatsController::class, 'statsDashboard']);
     Route::get('/allStats', [StatsController::class, 'allStats']);
+    Route::get('/monthlyStats', [StatsController::class, 'monthlyStats']);
 
     Route::prefix('admin')->group(function () {
         Route::post('/createUser', [EmployeIntermediaireController::class, 'createUser']);

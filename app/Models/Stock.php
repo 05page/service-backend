@@ -46,6 +46,11 @@ class Stock extends Model
         return $this->belongsTo(Achats::class, 'achat_id');
     }
 
+        public function photos()
+    {
+        return $this->hasMany(AchatPhotos::class, 'achat_id');
+    }
+
     // Scopes
     public function scopeActif($query)
     {
