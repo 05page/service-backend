@@ -547,9 +547,10 @@ class VentesController extends Controller
         try {
             $user = Auth::user();
 
-            $ventes = Ventes::with([
+            $query = Ventes::with([
                 'items.stock.achat:id,nom_service',
-                'commissionnaire:id,fullname'
+                'commissionnaire:id,fullname,taux_commission',
+                'paiements:id,payable_id,montant_verse,date_paiement'
             ])->select(
                 'id',
                 'reference',
@@ -557,26 +558,98 @@ class VentesController extends Controller
                 'numero',
                 'adresse',
                 'commissionaire',
+                'prix_total',
                 'montant_verse',
+                'reglement_statut',
+                'statut',
                 'created_at'
             )->where('statut', 'paye');
 
             if ($user->role === User::ROLE_EMPLOYE) {
-                $ventes->where('created_by', $user->id);
+                $query->where('created_by', $user->id);
             }
 
-            $ventes = $ventes->get();
+            $ventes = $query->get();
 
-            $clients = $ventes->groupBy('nom_client')
-                ->map(function ($ventes, $nom) {
+            // ✅ Formater chaque vente AVANT le groupBy (comme dans showVentes)
+            $ventesFormatees = $ventes->map(function ($vente) {
+                return [
+                    'id' => $vente->id,
+                    'reference' => $vente->reference,
+                    'nom_client' => $vente->nom_client,
+                    'numero' => $vente->numero,
+                    'adresse' => $vente->adresse,
+                    'prix_total' => $vente->prix_total,
+                    'montant_verse' => $vente->montant_verse,
+                    'reste_a_payer' => $vente->montantRestant(),
+                    'reglement_statut' => $vente->reglement_statut,
+                    'est_soldee' => $vente->estSoldee(),
+                    'statut' => $vente->statut,
+                    'created_at' => $vente->created_at,
+
+                    // Items de la vente
+                    'items' => $vente->items->map(function ($item) {
+                        return [
+                            'id' => $item->id,
+                            'stock_id' => $item->stock_id,
+                            'nom_produit' => $item->stock->achat->nom_service ?? 'Article',
+                            'code_produit' => $item->stock->code_produit ?? 'N/A',
+                            'quantite' => $item->quantite,
+                            'prix_unitaire' => $item->prix_unitaire,
+                            'sous_total' => $item->sous_total
+                        ];
+                    }),
+
+                    'nombre_articles' => $vente->items->count(),
+                    'total_quantite' => $vente->items->sum('quantite'),
+
+                    // Paiements
+                    'paiements' => $vente->paiements->map(function ($paiement) {
+                        return [
+                            'id' => $paiement->id,
+                            'montant_verse' => $paiement->montant_verse,
+                            'date_paiement' => $paiement->date_paiement?->format('d/m/Y H:i'),
+                        ];
+                    }),
+
+                    // Commissionnaire
+                    'commissionnaire' => $vente->commissionnaire ? [
+                        'id' => $vente->commissionnaire->id,
+                        'fullname' => $vente->commissionnaire->fullname,
+                        'taux_commission' => $vente->commissionnaire->taux_commission
+                    ] : null,
+                ];
+            });
+
+            // ✅ Maintenant grouper les ventes formatées par client
+            $clients = $ventesFormatees->groupBy('nom_client')
+                ->map(function ($ventesClient, $nom) {
+                    $premiereVente = $ventesClient->first();
+
                     return [
-                        'id' => $ventes->first()->id,
+                        'id' => $premiereVente['id'],
                         'nom_client' => $nom,
-                        'numero' => $ventes->first()->numero,
-                        'adresse' => $ventes->first()->adresse,
-                        'montant_verse' => $ventes->sum('montant_verse'),
-                        'nombre_ventes' => $ventes->count(),
-                        'ventes' => $ventes
+                        'numero' => $premiereVente['numero'],
+                        'adresse' => $premiereVente['adresse'],
+
+                        // Totaux du client
+                        'prix_total' => $ventesClient->sum('prix_total'),
+                        'montant_verse' => $ventesClient->sum('montant_verse'),
+                        'reste_a_payer' => $ventesClient->sum('reste_a_payer'),
+
+                        // Statut global du client
+                        'est_soldee' => $ventesClient->every(fn($v) => $v['est_soldee']),
+                        'reglement_statut' => $ventesClient->every(fn($v) => $v['est_soldee'])
+                            ? 'soldé'
+                            : 'en cours',
+
+                        // Statistiques
+                        'nombre_ventes' => $ventesClient->count(),
+                        'nombre_articles_total' => $ventesClient->sum('nombre_articles'),
+                        'quantite_totale' => $ventesClient->sum('total_quantite'),
+
+                        // Liste des ventes du client
+                        'ventes' => $ventesClient->values()
                     ];
                 })->values();
 
