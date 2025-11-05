@@ -59,7 +59,8 @@ class StatsController extends Controller
 
                     // Clients
                     'total_client' => Ventes::distinct('nom_client')->count('nom_client'),
-
+                    'nouveau_cient' => Ventes::distinct('nom_client')->whereMonth('created_at', Carbon::now()->month)
+                        ->whereYear('created_at', Carbon::now()->year)->count('nom_client'),
                     // Achats
                     'total_achats' => Achats::whereIn('statut', [Achats::ACHAT_REÇU, Achats::ACHAT_COMMANDE])->count(),
                     'total_achat_commande' => Achats::where('statut', Achats::ACHAT_COMMANDE)->count(),
@@ -114,9 +115,8 @@ class StatsController extends Controller
             $allStats = [
                 //Total des clients basé sur les ventes
                 'total_client' => Ventes::distinct("nom_client")->count("nom_client"),
-                'nouveau_cient' => Ventes::whereMonth('created_at', now()->month())->whereYear('created_at', now()->year())
-                    ->distinct("nom_client")
-                    ->count("nom_client"),
+                'nouveau_cient' => Ventes::distinct('nom_client')->whereMonth('created_at', Carbon::now()->month)
+                    ->whereYear('created_at', Carbon::now()->year)->count('nom_client'),
                 'total_ventes' => Ventes::count(),
 
                 //Total personnels
