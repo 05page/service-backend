@@ -192,16 +192,67 @@ class AchatsController extends Controller
                 ], 403);
             }
 
-            // Récupérer les achats payés/reçus qui ne sont pas liés à un stock
-            $achats = Achats::with(['fournisseur:id,nom_fournisseurs'])
+            // ✅ MODIFIÉ : Récupérer les achats payés/reçus qui ne sont PAS encore utilisés
+            $achats = Achats::with(['fournisseur:id,nom_fournisseurs', 'photos'])
                 ->whereIn('statut', [Achats::ACHAT_PAYE, Achats::ACHAT_REÇU])
-                ->doesntHave('stock')
+                ->where('active', 1)
+                ->whereDoesntHave('stockHistoriques') // ✅ Utilise la nouvelle relation
                 ->get();
 
             return response()->json([
                 'success' => true,
                 'data' => $achats,
                 'message' => "Achats disponibles récupérés avec succès"
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "Erreur survenue lors de la récupération",
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * ✅ NOUVEAU : Récupérer les achats déjà utilisés pour le renouvellement
+     */
+    public function achatsUtilises(): JsonResponse
+    {
+        try {
+            if (!$this->verifierPermission()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Accès refusé",
+                ], 403);
+            }
+
+            // Récupérer les achats déjà utilisés dans des stocks
+            $achats = Achats::with([
+                'fournisseur:id,nom_fournisseurs',
+                'stockHistoriques.stock:id,code_produit,quantite,statut'
+            ])
+                ->whereIn('statut', [Achats::ACHAT_PAYE, Achats::ACHAT_REÇU])
+                ->where('active', 1)
+                ->whereHas('stockHistoriques')
+                ->get()
+                ->map(function ($achat) {
+                    // Ajouter les informations des stocks liés
+                    $stocks = $achat->getTousLesStocks();
+                    $achat->stocks_lies = $stocks->map(function ($stock) {
+                        return [
+                            'id' => $stock->id,
+                            'code_produit' => $stock->code_produit,
+                            'quantite' => $stock->quantite,
+                            'statut' => $stock->statut
+                        ];
+                    });
+                    return $achat;
+                });
+
+            return response()->json([
+                'success' => true,
+                'data' => $achats,
+                'message' => "Achats utilisés récupérés avec succès"
             ], 200);
         } catch (\Exception $e) {
             return response()->json([

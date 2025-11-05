@@ -61,7 +61,7 @@ class StatsController extends Controller
                     'total_client' => Ventes::distinct('nom_client')->count('nom_client'),
 
                     // Achats
-                    'total_achats' => Achats::count(),
+                    'total_achats' => Achats::whereIn('statut', [Achats::ACHAT_REÇU, Achats::ACHAT_COMMANDE])->count(),
                     'total_achat_commande' => Achats::where('statut', Achats::ACHAT_COMMANDE)->count(),
                     'total_achats_recu' => Achats::where('statut', Achats::ACHAT_REÇU)->count(),
                     'total_prix_achats' => $totalAchat,

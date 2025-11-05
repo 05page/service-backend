@@ -70,7 +70,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [StockController::class, 'addStock']);
         Route::get('/', [StockController::class, 'showStocks']);
         Route::get('/stats', [StockController::class, 'statStock']);
+        Route::get('/{id}/historique', [StockController::class, 'historiqueStock']);
         Route::post('/desactive/{id}', [StockController::class, 'desactiveStock']);       // Modifier (edit_suppliers)
+        Route::post('/renouveler', [StockController::class, 'renouvelerStock']);       // Modifier (edit_suppliers)
         Route::post('/active/{id}', [StockController::class, 'activeStock']);       // Modifier (edit_suppliers)
         Route::get('{id}', [StockController::class, 'show']);         // Voir détail (view_suppliers)
         Route::put('{id}', [StockController::class, 'updateStock']);       // Modifier (edit_suppliers)
@@ -81,7 +83,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('ventes')->group(function () {
         Route::post('/', [VentesController::class, 'createVente']);
         Route::get('/', [VentesController::class, 'showVentes']);         // Voir détail (view_suppliers)
-        Route::get('/myVentes', [VentesController::class, 'showMyVentes']);         // Voir détail (view_suppliers)
+        Route::get('/{id}/historique', [VentesController::class, 'historiquePaiement']);         // Voir détail (view_suppliers)
         Route::get('/allStats', [StatsController::class, 'allStats']);
         Route::get('/client', [VentesController::class, 'client']);
         Route::get('/myStats', [VentesController::class, 'myStats']);
@@ -89,7 +91,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('{id}', [VentesController::class, 'update']);       // Modifier (edit_suppliers)
         Route::put('/reglement/{id}', [VentesController::class, 'updateReglement']);
         Route::post('/validePaye/{id}', [VentesController::class, 'marquePayer']);       // Modifier (edit_suppliers)
-        Route::post('/annuler/{id}', [VentesController::class, 'marqueAnnuler']);       // Modifier (edit_suppliers)
+        Route::put('/{id}/annuler', [VentesController::class, 'marqueAnnuler']);       // Modifier (edit_suppliers)
         Route::delete('{id}', [VentesController::class, 'deleteVente']);   // Supprimer (delete_suppliers)
         Route::delete('/', [VentesController::class, 'deleteAll']);   // Supprimer (delete_suppliers)
     });
@@ -98,12 +100,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [AchatsController::class, 'createAchat']);
         Route::get('/', [AchatsController::class, 'showAchats']);         // Voir détail (view_suppliers)
         Route::get('/stats', [AchatsController::class, 'statsAchat']);
-        // Route::get('/myStats/{userdId}', [StatsController::class, 'myStats']);
+        Route::get('/achatsDisponibles', [AchatsController::class, 'achatsDisponibles']);
         Route::get('{id}', [AchatsController::class, 'selectAchat']);
         Route::put('{id}', [AchatsController::class, 'updateAchat']);       // Modifier (edit_suppliers)
-        // Route::post('/validePaye/{id}', [AchatsController::class, 'marquePaye']); 
-        // Route::post('/ConfirmeAchat/{id}', [AchatsController::class, 'marqueConfirme']);
-        Route::post('/annuler/{id}', [AchatsController::class, 'marqueAnnule']);       // Modifier (edit_suppliers)
+        Route::put('/{id}/annuler', [AchatsController::class, 'marqueAnnule']);       // Modifier (edit_suppliers)
         Route::delete('{id}', [AchatsController::class, 'deleteAchat']);   // Supprimer (delete_suppliers)
     });
 

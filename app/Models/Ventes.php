@@ -108,7 +108,7 @@ class Ventes extends Model
         return DB::transaction(function () use ($montant, $userId) {
             Paiement::create([
                 'payable_id' => $this->id,
-                'payable_type' => self::class,
+                'payable_type' => 'vente',
                 'montant_verse' => $montant,
                 'created_by' => $userId ?? Auth::id()
             ]);
@@ -237,7 +237,9 @@ class Ventes extends Model
 
             // Supprimer les commissions associées
             $this->commissions()->delete();
-
+            $this->paiements()->delete();
+            $this->montant_verse = 0;
+            $this->reglement_statut = 0;
             $this->statut = self::STATUT_ANNULE;
             return $this->save();
         });
