@@ -26,7 +26,7 @@ class StatsController extends Controller
 
             if ($user->role === User::ROLE_ADMIN) {
                 // ✅ Stats globales pour l'admin
-                $totalVente = Ventes::Paye()->sum('prix_total');
+                $totalVente = Ventes::Paye()->sum('montant_verse');
                 $totalAchat = Achats::Reçu()->sum('prix_total');
                 $totalCommission = Commission::CommissionsPayees()->sum('commission_due');
                 $allStats = [
@@ -39,15 +39,15 @@ class StatsController extends Controller
                     'chiffres_affaire_mois' => Ventes::Paye()
                         ->whereMonth('created_at', Carbon::now()->month)
                         ->whereYear('created_at', Carbon::now()->year)
-                        ->sum('prix_total'),
-                    'chiffre_affaires_jour' => Ventes::Paye()->whereDate('created_at', today())->sum('prix_total'),
+                        ->sum('montant_verse'),
+                    'chiffre_affaires_jour' => Ventes::Paye()->whereDate('created_at', today())->sum('montant_verse'),
                     //Bénéfice total
                     'benefices_total' => $totalVente - $totalAchat - $totalCommission,
                     'benefice_mois' =>
                     Ventes::Paye()
                         ->whereMonth('created_at', Carbon::now()->month)
                         ->whereYear('created_at', Carbon::now()->year)
-                        ->sum('prix_total')
+                        ->sum('montant_verse')
                         - Achats::Reçu()
                         ->whereMonth('created_at', Carbon::now()->month)
                         ->whereYear('created_at', Carbon::now()->year)
@@ -62,9 +62,10 @@ class StatsController extends Controller
                     'nouveau_cient' => Ventes::distinct('nom_client')->whereMonth('created_at', Carbon::now()->month)
                         ->whereYear('created_at', Carbon::now()->year)->count('nom_client'),
                     // Achats
-                    'total_achats' => Achats::whereIn('statut', [Achats::ACHAT_REÇU, Achats::ACHAT_COMMANDE])->count(),
-                    'total_achat_commande' => Achats::where('statut', Achats::ACHAT_COMMANDE)->count(),
+                    'total_achat_commande' => Achats::count(),
                     'total_achats_recu' => Achats::where('statut', Achats::ACHAT_REÇU)->count(),
+                    'achats_non_recu' => Achats::where('statut', Achats::ACHAT_COMMANDE)->count(),
+                    'achats_annule' => Achats::where('statut', Achats::ACHAT_ANNULE)->count(),
                     'total_prix_achats' => $totalAchat,
 
                     // Stock

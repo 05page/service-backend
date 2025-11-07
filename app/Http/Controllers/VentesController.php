@@ -215,6 +215,8 @@ class VentesController extends Controller
     {
         try {
             $user = Auth::user();
+
+            // Vérification des permissions
             if (!$this->verifierPermissions()) {
                 return response()->json([
                     'success' => false,
@@ -222,7 +224,7 @@ class VentesController extends Controller
                 ], 403);
             }
 
-            // ✅ Charger les items au lieu du stock direct
+            // Base de la requête
             $query = Ventes::with([
                 'creePar:id,fullname,email,role',
                 'items.stock.achat:id,nom_service',
@@ -243,9 +245,15 @@ class VentesController extends Controller
                 'created_at'
             );
 
+            // Filtrer selon le rôle
+            if ($user->role === User::ROLE_EMPLOYE) {
+                $query->where('created_by', $user->id);
+            }
+
+            // Récupération des ventes
             $ventes = $query->orderBy('created_at', 'desc')->get();
 
-            // ✅ Formater les données pour le frontend
+            // Transformation pour le frontend
             $ventesFormatees = $ventes->map(function ($vente) {
                 return [
                     'id' => $vente->id,
@@ -259,9 +267,9 @@ class VentesController extends Controller
                     'reglement_statut' => $vente->reglement_statut,
                     'est_soldee' => $vente->estSoldee(),
                     'statut' => $vente->statut,
-                    'created_at' => $vente->created_at->format('d/m/Y H:i'),
+                    'created_at' => $vente->created_at?->format('d/m/Y H:i'),
 
-                    // ✅ Informations sur les articles
+                    // Détails des articles
                     'items' => $vente->items->map(function ($item) {
                         return [
                             'id' => $item->id,
@@ -273,18 +281,20 @@ class VentesController extends Controller
                             'sous_total' => $item->sous_total
                         ];
                     }),
-
-                    // Nombre total d'articles
                     'nombre_articles' => $vente->items->count(),
                     'total_quantite' => $vente->items->sum('quantite'),
 
+                    // Paiements
                     'paiements' => $vente->paiements->map(function ($paiement) {
                         return [
                             'id' => $paiement->id,
                             'montant_verse' => $paiement->montant_verse,
-                            'date_paiement' => $paiement->date_paiement?->format('d/m/Y H:i'),
+                            'date_paiement' => $paiement->date_paiement
+                                ? \Carbon\Carbon::parse($paiement->date_paiement)->format('d/m/Y H:i')
+                                : null,
                         ];
                     }),
+
                     // Commissionnaire
                     'commissionnaire' => $vente->commissionnaire ? [
                         'id' => $vente->commissionnaire->id,
@@ -293,14 +303,15 @@ class VentesController extends Controller
                     ] : null,
 
                     // Créateur
-                    'cree_par' => [
+                    'cree_par' => $vente->creePar ? [
                         'id' => $vente->creePar->id,
                         'nom' => $vente->creePar->fullname,
                         'role' => $vente->creePar->role
-                    ]
+                    ] : null,
                 ];
             });
 
+            // ✅ Réponse JSON
             return response()->json([
                 'success' => true,
                 'data' => $ventesFormatees,
@@ -316,6 +327,7 @@ class VentesController extends Controller
             ], 500);
         }
     }
+
 
     public function historiquePaiement($id): JsonResponse
     {
@@ -520,10 +532,11 @@ class VentesController extends Controller
         try {
             $userId = Auth::id();
             $myStats = [
-                'total_ventes' => Ventes::where('created_by', $userId)->count(),
-                'ventes_en_attente' => Ventes::where('created_by', $userId)->EnAttente()->count(),
-                'ventes_paye' => Ventes::where('created_by', $userId)->Paye()->count(),
-                'ventes_annule' => Ventes::where('created_by', $userId)->Annule()->count(),
+                'chiffres_affaire_total' => Ventes::Paye()->where('created_by', $userId)->sum('montant_verse'),
+                'total_ventes' => Ventes::Paye()->where('created_by', $userId)->count(),
+                'ventes_en_attente' => Ventes::EnAttente()->where('created_by', $userId)->count(),
+                'ventes_regles' => Ventes::Regle()->Where('created_by', $userId)->count(),
+                'ventes_annule' => Ventes::Annule()->where('created_by', $userId)->count(),
                 'total_commissions' => Commission::where('user_id', Auth::id())->where('etat_commission', 1)->count(),
                 'mes_clients' => Ventes::where('created_by', $userId)->distinct("nom_client")->count("nom_client"),
             ];
