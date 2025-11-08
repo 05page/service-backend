@@ -85,6 +85,18 @@ class StatsController extends Controller
                     'ventes_annule' => Ventes::Annule()->where('created_by', $user->id)->count(),
                     'chiffres_affaire_total' => Ventes::Paye()->where('created_by', $user->id)->sum('prix_total'),
                     'total_client' => Ventes::where('created_by', $user->id)->select('nom_client')->distinct()->count(),
+
+                    'total_entrees_stock' => Stock::Entre()->sum('entre_stock'),
+                    'total_sorties_stock' => Stock::Sortie()->sum('sortie_stock'),
+                    'total_produits_stock' => Stock::where('actif', true)->count(),
+                    'total_stock_disponible' => Stock::StockDisponible()->count(),
+                    'total_stock_faible' => Stock::StockFaible()->count(),
+                    'total_valeur_stock' => Stock::StockDisponible()->sum('prix_vente'),
+
+                    'total_achat_commande' => Achats::count(),
+                    'total_achats_recu' => Achats::where('statut', Achats::ACHAT_REÇU)->count(),
+                    'achats_non_recu' => Achats::where('statut', Achats::ACHAT_COMMANDE)->count(),
+                    'achats_annule' => Achats::where('statut', Achats::ACHAT_ANNULE)->count(),
                 ];
             }
 

@@ -506,6 +506,12 @@ class VentesController extends Controller
             }
 
             $vente = Ventes::findOrFail($id);
+            if($vente->estSoldee()){
+                return response()->json([
+                    'success'=> false,
+                    'message'=> "Impossible d'annuler une vente déja soldée"
+                ], 400);
+            }
             if ($vente->annuler()) {
                 return response()->json([
                     'success' => true,
