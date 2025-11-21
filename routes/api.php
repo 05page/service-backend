@@ -99,6 +99,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('achat')->group(function () {
         Route::post('/', [AchatsController::class, 'createAchat']);
         Route::get('/', [AchatsController::class, 'showAchats']);         // Voir détail (view_suppliers)
+        Route::put('/addBonReception/{id}/', [AchatsController::class, 'addBonReception']);
         Route::get('/stats', [AchatsController::class, 'statsAchat']);
         Route::get('/achatsDisponibles', [AchatsController::class, 'achatsDisponibles']);
         Route::get('{id}', [AchatsController::class, 'selectAchat']);

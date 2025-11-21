@@ -40,7 +40,7 @@ class FournisseurController extends Controller
 
             $validator = $request->validate([
                 'nom_fournisseurs' => 'required|string|max:300',
-                'email' => 'required|email|unique:fournisseurs,email',
+                'email' => 'required|email',
                 'telephone' => 'required|string|max:10',
                 'description' => 'required|string|max:500',
                 'adresse' => 'required|string|max:300'

@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Commission;
 use App\Models\Paiement;
 use App\Models\User;
-use Dom\Comment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,13 +14,19 @@ use App\Mail\CommissionPayeeMail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
-
 class CommissionController extends Controller
 {
-    //
+    /**
+     * Payer une commission
+     *
+     * @param Request $request
+     * @param int $commissionId
+     * @return JsonResponse
+     */
     public function PayeCommission(Request $request, $commissionId): JsonResponse
     {
         try {
+            // Vérification des permissions
             if (Auth::user()->role !== User::ROLE_ADMIN) {
                 return response()->json([
                     'success' => false,
@@ -29,16 +34,17 @@ class CommissionController extends Controller
                 ], 403);
             }
 
-            // ✅ CORRECTION : utiliser 'user' au lieu de 'user_id'
+            // Récupération de la commission
             $commission = Commission::with('user')->findOrFail($commissionId);
-
-            // ✅ Validation corrigée
+            
+            // Validation
             $validated = $request->validate([
                 'montant_verse' => 'required|numeric|min:1|max:' . $commission->commission_due
             ]);
 
             DB::beginTransaction();
 
+            // Création du paiement
             $paiement = Paiement::create([
                 'payable_id'   => $commission->id,
                 'payable_type' => Commission::class,
@@ -46,25 +52,19 @@ class CommissionController extends Controller
                 'created_by'   => Auth::id(),
             ]);
 
+            // Mise à jour de la commission
             $commission->update([
                 'etat_commission' => true
             ]);
 
-            // ✅ Recharger la commission avec toutes les relations
+            // Rechargement des relations
             $commission->load('paiements', 'user');
 
             DB::commit();
 
-            // ✅ CORRECTION : utiliser 'user' au lieu de 'personnel'
+            // Envoi de l'email
             if ($commission->user && $commission->user->email) {
-                try {
-                    Mail::to($commission->user->email)
-                        ->send(new CommissionPayeeMail($commission));
-
-                    Log::info('Mail de commission envoyé à : ' . $commission->user->email);
-                } catch (\Exception $mailException) {
-                    Log::error('Erreur envoi mail commission : ' . $mailException->getMessage());
-                }
+                $this->sendCommissionEmail($commission);
             } else {
                 Log::warning('Impossible d\'envoyer le mail : user ou email manquant pour la commission #' . $commissionId);
             }
@@ -77,12 +77,21 @@ class CommissionController extends Controller
                     'paiement' => $paiement
                 ],
             ], 200);
+            
         } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur de validation',
                 'errors' => $e->errors()
             ], 422);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Commission introuvable'
+            ], 404);
+            
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Erreur paiement commission : ' . $e->getMessage());
@@ -92,6 +101,23 @@ class CommissionController extends Controller
                 'message' => 'Erreur lors du règlement',
                 'error' => $e->getMessage(),
             ], 500);
+        }
+    }
+
+    /**
+     * Envoyer l'email de notification de commission
+     *
+     * @param Commission $commission
+     * @return void
+     */
+    private function sendCommissionEmail(Commission $commission): void
+    {
+        try {
+            Mail::to($commission->user->email)->send(new CommissionPayeeMail($commission));
+
+            Log::info("Email de commission envoyé avec succès à {$commission->user->email}");
+        } catch (\Exception $e) {
+            Log::error("Erreur lors de l'envoi de l'email de commission à {$commission->user->email}: " . $e->getMessage());
         }
     }
 

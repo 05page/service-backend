@@ -87,7 +87,7 @@ class EmployeIntermediaireController extends Controller
                 'success' => true,
                 'data' => [
                     'employe_intermediaire' => $employeIntermediaire->load('createdBy'),
-                    'code_activation' => $employeIntermediaire->code_activation, // Pour les tests
+                    //'code_activation' => $employeIntermediaire->code_activation, // Pour les tests
                 ],
                 'message' => $message
             ], 201);

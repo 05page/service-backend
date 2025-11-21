@@ -12,16 +12,11 @@ class Achats extends Model
 {
     protected $fillable = [
         'fournisseur_id',
-        'nom_service',
-        'quantite',
-        'prix_unitaire',
-        'prix_total',
-        'numero_achat',
-        'date_commande',
-        'date_livraison',
         'statut',
-        'active',
         'description',
+        'depenses_total',
+        'bon_commande',
+        'active',
         'created_by'
     ];
 
@@ -31,7 +26,7 @@ class Achats extends Model
 
     const ACHAT_COMMANDE = "commande";
     const ACHAT_REÇU = "reçu";
-    const ACHAT_PAYE = "paye";
+    const ACHAT_PARTIEL = "partiellement_recu";
     const ACHAT_ANNULE = "annule";
 
     /**Relation avec l'utilisateur qui crée l'achat */
@@ -45,9 +40,12 @@ class Achats extends Model
     {
         return $this->belongsTo(Fournisseurs::class, 'fournisseur_id');
     }
+    public function items(): HasMany
+    {
+        return $this->hasMany(AchatItems::class, 'achat_id');
+    }
 
     /**
-     * ✅ MODIFIÉ : Garder pour compatibilité avec le code existant
      * Cette relation retourne le PREMIER stock lié via l'historique
      */
     public function stock()
@@ -101,12 +99,7 @@ class Achats extends Model
 
     public function scopeReçu($query)
     {
-        return $query->where('statut', self::ACHAT_REÇU);
-    }
-
-    public function scopePaye($query)
-    {
-        return $query->where('statut', self::ACHAT_PAYE);
+        return $query->where('bon_reception');
     }
 
     public function scopeAnnule($query)
@@ -120,14 +113,14 @@ class Achats extends Model
         return $this->statut === self::ACHAT_REÇU;
     }
 
+    public function isPartiel(): bool
+    {
+        return $this->statut === self::ACHAT_PARTIEL;
+    }
+
     public function isCommande(): bool
     {
         return $this->statut === self::ACHAT_COMMANDE;
-    }
-
-    public function isPaye(): bool
-    {
-        return $this->statut === self::ACHAT_PAYE;
     }
 
     public function isAnnule(): bool
@@ -153,17 +146,6 @@ class Achats extends Model
         }
 
         $this->statut = self::ACHAT_REÇU;
-        return $this->save();
-    }
-
-    /**Marquer comme payé */
-    public function marquePaye(): bool
-    {
-        if (!$this->isCommande()) {
-            return false;
-        }
-
-        $this->statut = self::ACHAT_PAYE;
         return $this->save();
     }
 
@@ -219,6 +201,39 @@ class Achats extends Model
         });
     }
 
+    public function updateStatutGlobal(): void
+    {
+        $totalItems = $this->items()->count();
+
+        if ($totalItems === 0) {
+            $this->statut = self::ACHAT_COMMANDE;
+            $this->save();
+            return;
+        }
+
+        $itemsRecus = $this->items()
+            ->where('statut_item', AchatItems::STATUT_RECU)
+            ->count();
+
+        $itemsPartiels = $this->items()
+            ->where('statut_item', AchatItems::STATUT_PARTIEL)
+            ->count();
+
+        // Logique de statut global
+        if ($itemsRecus === $totalItems) {
+            // Tous les items sont complètement reçus
+            $this->statut = self::ACHAT_REÇU;
+        } elseif ($itemsRecus > 0 || $itemsPartiels > 0) {
+            // Au moins un item est partiellement ou totalement reçu
+            $this->statut = self::ACHAT_PARTIEL;
+        } else {
+            // Aucun item reçu
+            $this->statut = self::ACHAT_COMMANDE;
+        }
+
+        $this->save();
+    }
+
     protected static function boot()
     {
         parent::boot();
@@ -238,13 +253,7 @@ class Achats extends Model
         return [
             'id' => $this->id,
             'fournisseur_id' => $this->fournisseur_id,
-            'nom_service' => $this->nom_service,
-            'quantite' => $this->quantite,
-            'prix_unitaire' => $this->prix_unitaire,
-            'prix_total' => $this->prix_total,
             'numero_achat' => $this->numero_achat,
-            'date_commande' => $this->date_commande,
-            'date_livraison' => $this->date_livraison,
             'statut' => $this->statut,
             'description' => $this->description,
             'created_at' => $this->created_at?->format('d/m/Y H:i')

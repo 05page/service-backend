@@ -27,12 +27,12 @@ class StatsController extends Controller
             if ($user->role === User::ROLE_ADMIN) {
                 // ✅ Stats globales pour l'admin
                 $totalVente = Ventes::Paye()->sum('montant_verse');
-                $totalAchat = Achats::Reçu()->sum('prix_total');
+                $totalAchat = Achats::Reçu()->where('bon_recpetion');
                 $totalCommission = Commission::CommissionsPayees()->sum('commission_due');
                 $allStats = [
                     // Ventes
                     'total_ventes' => Ventes::Paye()->count(), // ventes payées
-                    'ventes_en_attente' => Ventes::EnAttente()->count(),
+                    'ventes_en_attente' => Ventes::NonSoldees()->count(),
                     'ventes_annule' => Ventes::Annule()->count(),
                     'ventes_regles' => Ventes::Regle()->count(),
                     'chiffres_affaire_total' => $totalVente,

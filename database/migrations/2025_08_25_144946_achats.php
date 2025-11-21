@@ -16,18 +16,11 @@ return new class extends Migration
             $table->id();
             $table->foreignId('fournisseur_id')->constrained('fournisseurs')->onDelete('cascade');
             $table->string('nom_service');
-            $table->integer('quantite');
-            $table->decimal('prix_unitaire', 10, 2)->nullable(); // Prix à l'unité
-            $table->decimal('prix_total', 10, 2); // Total de l'achat (votre champ existant)
             // Numérotation et références
             $table->string('numero_achat')->unique()->nullable();
-            // Dates importantes
-            $table->date('date_commande')->nullable(); 
-            $table->date('date_livraison')->nullable();
              $table->enum('statut', [
                 'commande',     // Commandé
                 'reçu',     // Confirmé par le fournisseur
-                'paye',         // Payé
                 'annule'        // Annulé
             ])->default('commande');
             $table->text('description')->nullable(); // Commentaire sur l'achat
