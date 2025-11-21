@@ -15,6 +15,7 @@ class AchatItems extends Model
         'quantite_recu',
         'prix_unitaire',
         'prix_total',
+        'prix_reel',
         'date_commande',
         'bon_reception',
         'statut_item',
@@ -85,5 +86,11 @@ class AchatItems extends Model
         }
 
         return $this->save();
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+        
     }
 }

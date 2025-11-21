@@ -270,6 +270,7 @@ class AchatsController extends Controller
                     'quantite_recu'=> $quantiteRecueTotale,
                     'date_livraison'=> now()
                 ]);
+                $item->prix_reel = $quantiteRecueTotale * $item->prix_unitaire;
                 $item->marquerRecu();
             }
             // ✅ Mettre à jour le statut GLOBAL de l'achat en fonction des items
@@ -482,71 +483,6 @@ class AchatsController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => "Erreur survenue lors de la modification de l'achat",
-                'errors' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function marqueReçu($id): JsonResponse
-    {
-        try {
-            if (!$this->verifierPermission()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Accès refusé"
-                ], 403);
-            }
-
-            $reçu = Achats::findOrFail($id);
-            if ($reçu->isReçu()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cet achat est déjà marqué comme reçu'
-                ], 400);
-            }
-
-            $reçu->marqueReçu();
-            return response()->json([
-                'success' => true,
-                'message' => 'Achat marqué comme reçu',
-                'data' => $reçu
-            ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur survenue lors de la confirmation de l\'achat',
-                'errors' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function marquePaye($id): JsonResponse
-    {
-        try {
-            if (!$this->verifierPermission()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Accès réfusé"
-                ], 403);
-            }
-
-            $paye = Achats::findOrFail($id);
-            if ($paye->isPaye()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cet achat est déjà marqué comme payé'
-                ], 400);
-            }
-            $paye->marquePaye();
-            return response()->json([
-                'success' => true,
-                'message' => 'Achat marqué comme payé',
-                'data' => $paye
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Une erreur est survenue',
                 'errors' => $e->getMessage()
             ], 500);
         }
