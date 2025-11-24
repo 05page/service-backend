@@ -65,7 +65,7 @@ class Achats extends Model
      */
     public function stockHistoriques(): HasMany
     {
-        return $this->hasMany(StockHistorique::class, 'achats_id');  // ✅ Utiliser 'achats_id'
+        return $this->hasMany(StockHistorique::class, 'achat_id');  // ✅ Utiliser 'achats_id'
     }
 
     /**
@@ -73,7 +73,7 @@ class Achats extends Model
      */
     public function estUtiliseDansStock(): bool
     {
-        return $this->stockHistoriques()->exists();
+        return $this->stock()->exists();
     }
 
     /**
@@ -82,7 +82,7 @@ class Achats extends Model
     public function getTousLesStocks()
     {
         return Stock::whereHas('historiques', function ($query) {
-            $query->where('achats_id', $this->id);  // ✅ Utiliser 'achats_id'
+            $query->where('achat_id', $this->id);  // ✅ Utiliser 'achats_id'
         })->get();
     }
 
@@ -99,7 +99,7 @@ class Achats extends Model
 
     public function scopeReçu($query)
     {
-        return $query->where('bon_reception');
+        return $query->whereIn('statut', [self::ACHAT_REÇU, self::ACHAT_PARTIEL]);
     }
 
     public function scopeAnnule($query)
@@ -166,7 +166,7 @@ class Achats extends Model
                 foreach ($stocksLies as $stock) {
                     // Récupérer la quantité totale ajoutée par cet achat
                     $quantiteTotale = $stock->historiques()
-                        ->where('achats_id', $this->id)
+                        ->where('achat_id', $this->id)
                         ->whereIn('type', ['creation', 'renouvellement', 'entree'])
                         ->sum('quantite');
 
@@ -181,7 +181,7 @@ class Achats extends Model
 
                         // ✅ Créer une entrée d'historique
                         $stock->historiques()->create([
-                            'achats_id' => null,
+                            'achat_id' => null,
                             'type' => 'sortie',
                             'quantite' => $quantiteTotale,
                             'quantite_avant' => $quantiteAvant,

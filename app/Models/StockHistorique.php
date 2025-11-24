@@ -11,7 +11,7 @@ class StockHistorique extends Model
     
     protected $fillable = [
         'stock_id',
-        'achats_id',  // ✅ On garde 'achats_id'
+        'achat_id',  // ✅ On garde 'achats_id'
         'type',
         'quantite',
         'quantite_avant',

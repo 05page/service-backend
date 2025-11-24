@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AchatItems;
 use App\Models\Achats;
 use App\Models\Permissions;
 use App\Models\Stock;
@@ -52,10 +53,9 @@ class StockController extends Controller
             ]);
 
             // Récupérer l'achat
-            $achat = Achats::with('fournisseur')
+            $achat = AchatItems::with('achat_id')
                 ->where('id', $validate['achat_id'])
-                ->where('active', 1)
-                ->whereIn('statut', [Achats::ACHAT_PAYE, Achats::ACHAT_REÇU])
+                ->whereIn('statut_items', [AchatItems::STATUT_RECU, AchatItems::STATUT_PARTIEL])
                 ->first();
 
             if (!$achat) {
@@ -137,7 +137,7 @@ class StockController extends Controller
 
             // Récupérer l'achat
             $achat = Achats::where('id', $validated['achat_id'])
-                ->whereIn('statut', [Achats::ACHAT_PAYE, Achats::ACHAT_REÇU])
+                ->whereIn('statut', [Achats::ACHAT_REÇU])
                 ->where('active', 1)
                 ->first();
 
@@ -245,19 +245,18 @@ class StockController extends Controller
         }
     }
 
-    /**
-     * ✅ Obtenir l'historique complet d'un stock
-     */
     public function historiqueStock($id): JsonResponse
     {
         try {
             $stock = Stock::with([
                 'achat.fournisseur',
+                'achat.items',
                 'achat.photos',
                 'historiques' => function($query) {
                     $query->with([
                         'achat.fournisseur',  // ✅ Charger l'achat avec le fournisseur
-                        'achat.photos',
+                        'achat.items',
+                        'achat.photos', 
                         'creePar:id,fullname,email'
                     ])->orderBy('created_at', 'desc');
                 }
@@ -278,7 +277,7 @@ class StockController extends Controller
 
             // ✅ CORRECTION: Filtrer les achats null
             $achatsLies = $stock->historiques()
-                ->whereNotNull('achats_id')
+                ->whereNotNull('achat_id')
                 ->with('achat.fournisseur')
                 ->get()
                 ->pluck('achat')
@@ -323,7 +322,8 @@ class StockController extends Controller
 
             $query = Stock::with([
                 'creePar:id,fullname,email,role',
-                'achat:id,nom_service,prix_unitaire',
+                'achat:id',
+                'achat.items:achat_id,nom_service,quantite,quantite_recu,prix_unitaire,prix_total,prix_reel,date_commande,statut_item,bon_reception,date_livraison',
                 'achat.photos'
             ])
             ->select(
@@ -442,41 +442,6 @@ class StockController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => "Stock supprimé avec succès."
-            ], 200);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur survenue',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function deleteAll(): JsonResponse
-    {
-        try {
-            if (!$this->verifierPermissions()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Accès refusé."
-                ], 403);
-            }
-
-            DB::beginTransaction();
-            
-            $stocksNonUtilises = Stock::where('sortie_stock', '=', 0)->get();
-            
-            foreach ($stocksNonUtilises as $stock) {
-                $stock->historiques()->delete();
-                $stock->delete();
-            }
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => "Stocks non utilisés supprimés avec succès."
             ], 200);
         } catch (\Exception $e) {
             DB::rollBack();

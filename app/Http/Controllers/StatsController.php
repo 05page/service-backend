@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\AchatItems;
 use App\Models\Achats;
 use App\Models\Commission;
 use App\Models\Fournisseurs;
@@ -27,7 +28,7 @@ class StatsController extends Controller
             if ($user->role === User::ROLE_ADMIN) {
                 // ✅ Stats globales pour l'admin
                 $totalVente = Ventes::Paye()->sum('montant_verse');
-                $totalAchat = Achats::Reçu()->where('bon_recpetion');
+                $totalAchat = Achats::Reçu()->sum('depenses_total');
                 $totalCommission = Commission::CommissionsPayees()->sum('commission_due');
                 $allStats = [
                     // Ventes
@@ -51,7 +52,7 @@ class StatsController extends Controller
                         - Achats::Reçu()
                         ->whereMonth('created_at', Carbon::now()->month)
                         ->whereYear('created_at', Carbon::now()->year)
-                        ->sum('prix_total')
+                        ->sum('depenses_total')
                         - Commission::CommissionsPayees()
                         ->whereMonth('created_at', Carbon::now()->month)
                         ->whereYear('created_at', Carbon::now()->year)
@@ -62,8 +63,8 @@ class StatsController extends Controller
                     'nouveau_cient' => Ventes::distinct('nom_client')->whereMonth('created_at', Carbon::now()->month)
                         ->whereYear('created_at', Carbon::now()->year)->count('nom_client'),
                     // Achats
-                    'total_achat_commande' => Achats::count(),
-                    'total_achats_recu' => Achats::where('statut', Achats::ACHAT_REÇU)->count(),
+                    'total_achat_commande' => AchatItems::count(),
+                    'total_achats_recu' => Achats::whereIn('statut', [Achats::ACHAT_REÇU, Achats::ACHAT_PARTIEL])->count(),
                     'achats_non_recu' => Achats::where('statut', Achats::ACHAT_COMMANDE)->count(),
                     'achats_annule' => Achats::where('statut', Achats::ACHAT_ANNULE)->count(),
                     'total_prix_achats' => $totalAchat,
@@ -93,7 +94,7 @@ class StatsController extends Controller
                     'total_stock_faible' => Stock::StockFaible()->count(),
                     'total_valeur_stock' => Stock::StockDisponible()->sum('prix_vente'),
 
-                    'total_achat_commande' => Achats::count(),
+                    'total_achat_commande' => AchatItems::count(),
                     'total_achats_recu' => Achats::where('statut', Achats::ACHAT_REÇU)->count(),
                     'achats_non_recu' => Achats::where('statut', Achats::ACHAT_COMMANDE)->count(),
                     'achats_annule' => Achats::where('statut', Achats::ACHAT_ANNULE)->count(),
@@ -206,7 +207,7 @@ class StatsController extends Controller
                 $achatsMonth = Achats::Reçu()
                     ->whereMonth('created_at', $month)
                     ->whereYear('created_at', $year)
-                    ->sum('prix_total');
+                    ->sum('depenses_total');
 
                 // Commissions du mois
                 $commissionsMonth = Commission::CommissionsPayees()

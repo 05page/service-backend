@@ -14,7 +14,7 @@ return new class extends Migration
         //
         Schema::create('stock', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('achat_id')->constrained('fournisseurs')->onDelete('cascade');
+            $table->foreignId('achat_id')->constrained('achats')->onDelete('cascade');
             $table->string('code_produit')->unique();
             $table->string('categorie')->nullable();
             $table->integer('quantite')->default(0);

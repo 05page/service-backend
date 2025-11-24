@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::table('achats', function (Blueprint $table) {
             //
-            $table->decimal('depenses_total' ,10,2)->after('description');
+            $table->decimal('depenses_total' ,10,2)->after('description')->default(0);
         });
     }
 

@@ -36,9 +36,7 @@ class Stock extends Model
     const STOCK_FAIBLE = 2;
     const STOCK_RUPTURE = 0;
 
-    // -------------------------
     // Relations
-    // -------------------------
     public function creePar(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -48,6 +46,11 @@ class Stock extends Model
     {
         return $this->belongsTo(Achats::class, 'achat_id');
     }
+
+    // public function achatItems(): BelongsTo
+    // {
+    //     return $this->belongsTo(AchatItems::class,'');
+    // }
 
     public function photos(): HasMany
     {
@@ -62,9 +65,7 @@ class Stock extends Model
         return $this->hasMany(StockHistorique::class, 'stock_id');
     }
 
-    // -------------------------
     // Scopes
-    // -------------------------
     public function scopeActif($query)
     {
         return $query->where('actif', true);
@@ -228,7 +229,7 @@ class Stock extends Model
 
             // Créer l'historique du renouvellement
             $this->historiques()->create([
-                'achats_id' => $achat->id,
+                'achat_id' => $achat->id,
                 'type' => StockHistorique::TYPE_RENOUVELLEMENT,
                 'quantite' => $achat->quantite,
                 'quantite_avant' => $quantiteAvant,
@@ -257,9 +258,6 @@ class Stock extends Model
         })->with('fournisseur')->get();
     }
 
-    // -------------------------
-    // Boot / events
-    // -------------------------
     protected static function boot()
     {
         parent::boot();
@@ -275,7 +273,7 @@ class Stock extends Model
         static::created(function ($stock) {
             // créer automatiquement l'historique de création si achat existant
             $stock->historiques()->create([
-                'achats_id' => $stock->achat_id,
+                'achat_id' => $stock->achat_id,
                 'type' => StockHistorique::TYPE_CREATION,
                 'quantite' => $stock->quantite,
                 'quantite_avant' => 0,
@@ -292,9 +290,6 @@ class Stock extends Model
         });
     }
 
-    // -------------------------
-    // Presentation helper
-    // -------------------------
     public function getResume(): array
     {
         return [
