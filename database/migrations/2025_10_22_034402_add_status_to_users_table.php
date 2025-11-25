@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             //
-            $table->integer('taux_commission')->after('role');
+            $table->integer('taux_commission')->nullable()->after('role');
         });
     }
 

@@ -15,15 +15,16 @@ return new class extends Migration
         Schema::create('achats', function (Blueprint $table) {
             $table->id();
             $table->foreignId('fournisseur_id')->constrained('fournisseurs')->onDelete('cascade');
-            $table->string('nom_service');
             // Numérotation et références
             $table->string('numero_achat')->unique()->nullable();
              $table->enum('statut', [
                 'commande',     // Commandé
                 'reçu',     // Confirmé par le fournisseur
+                'partiellement_recu',
                 'annule'        // Annulé
             ])->default('commande');
             $table->text('description')->nullable(); // Commentaire sur l'achat
+            $table->string('bon_commande')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
         });

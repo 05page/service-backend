@@ -45,6 +45,13 @@ class AchatItems extends Model
         return $this->hasMany(AchatPhotos::class, 'achat_item_id');
     }
 
+    /**
+     * ✅ NOUVELLE RELATION : Vers les historiques de stock via achat_id
+     */
+    public function stockHistoriques()
+    {
+        return $this->hasMany(StockHistorique::class, 'achat_id', 'achat_id');
+    }
 
     // Helpers
     public function isRecu(): bool
@@ -67,13 +74,15 @@ class AchatItems extends Model
         return $this->stockHistoriques()->exists();
     }
 
+    /**
+     * ✅ CORRECTION DU SCOPE
+     */
     public function scopeDisponible($query)
     {
-        $achatEnStock = Stock::pluck('achat_id');
         return $query->whereIn('statut_item', [
             self::STATUT_RECU,
             self::STATUT_PARTIEL,
-        ])->whereNotIn('achat_id', $achatEnStock);
+        ])->whereDoesntHave('stockHistoriques'); // ✅ Syntaxe correcte
     }
 
     public function calculePrixTotal(): float
@@ -106,20 +115,18 @@ class AchatItems extends Model
     }
 
     /**
-     * ✅ MÉTHODE CORRIGÉE : Sans transaction imbriquée
+     * ✅ MÉTHODE CORRIGÉE : Gestion correcte du stock via historiques
      */
     public function addStock()
     {
         try {
             Log::info("=== DÉBUT addStock() pour item #{$this->id} ===");
 
-            // Ne rien faire si aucune quantité n'a été reçue
             if ($this->quantite_recu <= 0) {
                 Log::warning("Quantité reçue = 0, annulation");
                 return;
             }
 
-            // Vérifier que l'achat existe
             $achat = $this->achat;
             if (!$achat) {
                 Log::error("Achat introuvable pour l'item #{$this->id}");
@@ -128,38 +135,32 @@ class AchatItems extends Model
 
             Log::info("Achat trouvé : #{$achat->id} - {$achat->numero_achat}");
 
-            // Chercher le stock existant
-            $stock = Stock::where('achat_id', $this->achat_id)->first();
+            // ✅ CORRECTION : Chercher via stock_historiques
+            $stockExistant = Stock::whereHas('historiques', function($query) {
+                $query->where('achat_id', $this->achat_id);
+            })->first();
 
-            if ($stock) {
-                Log::info("Stock existant trouvé : #{$stock->id}");
-            } else {
-                Log::info("Aucun stock trouvé, création nécessaire");
-            }
-
-            // ✅ PAS DE TRANSACTION ICI - On est déjà dans une transaction du contrôleur
-            if ($stock) {
+            if ($stockExistant) {
                 // ✅ CAS 1 : Renouvellement
-                Log::info("Renouvellement du stock #{$stock->id} avec {$this->quantite_recu} unités");
+                Log::info("Renouvellement du stock #{$stockExistant->id} avec {$this->quantite_recu} unités");
 
-                $quantiteAvant = $stock->quantite;
+                $quantiteAvant = $stockExistant->quantite;
 
-                $stock->increment('entre_stock', $this->quantite_recu);
-                $stock->increment('quantite', $this->quantite_recu);
-                $stock->updateStatut();
+                $stockExistant->increment('entre_stock', $this->quantite_recu);
+                $stockExistant->increment('quantite', $this->quantite_recu);
+                $stockExistant->updateStatut();
 
-                // ✅ Créer l'historique avec 'achats_id'
-                $stock->historiques()->create([
+                $stockExistant->historiques()->create([
                     'achat_id' => $this->achat_id,
                     'type' => StockHistorique::TYPE_RENOUVELLEMENT,
                     'quantite' => $this->quantite_recu,
                     'quantite_avant' => $quantiteAvant,
-                    'quantite_apres' => $stock->quantite,
+                    'quantite_apres' => $stockExistant->quantite,
                     'commentaire' => "Renouvellement automatique depuis l'item #{$this->id} - {$this->nom_service}",
                     'created_by' => auth()->id() ?? $achat->created_by
                 ]);
 
-                Log::info("✅ Renouvellement réussi : {$quantiteAvant} → {$stock->quantite}");
+                Log::info("✅ Renouvellement réussi : {$quantiteAvant} → {$stockExistant->quantite}");
             } else {
                 // ✅ CAS 2 : Création
                 Log::info("Création d'un nouveau stock pour '{$this->nom_service}'");
@@ -178,6 +179,17 @@ class AchatItems extends Model
                     'created_by' => auth()->id() ?? $achat->created_by
                 ]);
 
+                // ✅ IMPORTANT : Créer l'historique de création
+                $nouveauStock->historiques()->create([
+                    'achat_id' => $this->achat_id,
+                    'type' => StockHistorique::TYPE_CREATION,
+                    'quantite' => $this->quantite_recu,
+                    'quantite_avant' => 0,
+                    'quantite_apres' => $nouveauStock->quantite,
+                    'commentaire' => "Création depuis l'item #{$this->id} - {$this->nom_service}",
+                    'created_by' => auth()->id() ?? $achat->created_by
+                ]);
+
                 Log::info("✅ Stock créé : #{$nouveauStock->id} - {$nouveauStock->code_produit}");
             }
 
@@ -187,9 +199,9 @@ class AchatItems extends Model
             Log::error("Message : " . $e->getMessage());
             Log::error("Ligne : " . $e->getLine());
             Log::error("Fichier : " . $e->getFile());
+            Log::error("Stack trace : " . $e->getTraceAsString());
 
-            // ✅ Ne pas faire de rollback ici - laisser le contrôleur gérer
-            throw $e; // Propager l'erreur au contrôleur
+            throw $e;
         }
     }
 
@@ -200,13 +212,9 @@ class AchatItems extends Model
     {
         parent::boot();
 
-        /**
-         * Événement UPDATED
-         */
         static::updated(function ($item) {
             Log::info("=== Événement UPDATED item #{$item->id} ===");
 
-            // Vérifier les changements
             $quantiteRecueAChange = $item->wasChanged('quantite_recu');
 
             Log::info("Quantité changée : " . ($quantiteRecueAChange ? 'OUI' : 'NON'));
@@ -216,7 +224,6 @@ class AchatItems extends Model
                 Log::info("Nouvelle quantité : " . $item->quantite_recu);
             }
 
-            // Vérifier le statut
             $estRecu = in_array($item->statut_item, [
                 self::STATUT_RECU,
                 self::STATUT_PARTIEL
@@ -225,7 +232,6 @@ class AchatItems extends Model
             Log::info("Statut valide : " . ($estRecu ? 'OUI' : 'NON'));
             Log::info("Statut actuel : " . $item->statut_item);
 
-            // Déclencher l'ajout au stock
             if ($quantiteRecueAChange && $estRecu) {
                 Log::info("✅ Conditions remplies → Appel addStock()");
                 $item->addStock();

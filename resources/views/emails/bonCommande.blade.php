@@ -105,6 +105,33 @@
             font-weight: 500;
         }
 
+        .items-list {
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 4px;
+        }
+
+        .item-row {
+            padding: 10px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .item-row:last-child {
+            border-bottom: none;
+        }
+
+        .item-name {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 5px;
+        }
+
+        .item-details {
+            font-size: 13px;
+            color: #6b7280;
+        }
+
         .highlight-box {
             background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
             color: white;
@@ -180,18 +207,6 @@
             font-style: italic;
         }
 
-        .button {
-            display: inline-block;
-            background-color: #3b82f6;
-            color: white;
-            padding: 12px 30px;
-            text-decoration: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
-            margin: 20px 0;
-        }
-
         @media only screen and (max-width: 600px) {
             .email-container {
                 border-radius: 0;
@@ -216,13 +231,11 @@
 </head>
 <body>
     <div class="email-container">
-        <!-- En-tête -->
         <div class="header">
             <h1>📋 Bon de Commande</h1>
             <p>Nouvelle commande enregistrée</p>
         </div>
 
-        <!-- Contenu -->
         <div class="content">
             <p class="greeting">Bonjour <strong>{{ $achat->fournisseur->nom_fournisseurs }}</strong>,</p>
             
@@ -231,46 +244,64 @@
                 Vous trouverez ci-joint le bon de commande détaillé au format PDF.
             </p>
 
-            <!-- Numéro de commande -->
             <div class="commande-box">
                 <div class="commande-numero">
-                    Commande N° {{ str_pad($achat->id, 6, '0', STR_PAD_LEFT) }}
+                    Commande N° {{ $achat->numero_achat }}
                 </div>
 
-                <!-- Détails -->
+                @php
+                    $totalCommande = 0;
+                @endphp
+
+                <!-- Liste des articles -->
+                <div class="items-list">
+                    <strong style="color: #3b82f6; display: block; margin-bottom: 10px;">Articles commandés:</strong>
+                    @foreach($achat->items as $item)
+                    <div class="item-row">
+                        <div class="item-name">{{ $item->nom_service }}</div>
+                        <div class="item-details">
+                            Quantité: <strong>{{ $item->quantite }}</strong> | 
+                            Prix unitaire: <strong>{{ number_format($item->prix_unitaire, 0, ',', ' ') }} FCFA</strong> | 
+                            Total: <strong>{{ number_format($item->prix_total, 0, ',', ' ') }} FCFA</strong>
+                        </div>
+                        @if($item->date_commande)
+                        <div class="item-details" style="margin-top: 3px;">
+                            📅 Date commande: {{ \Carbon\Carbon::parse($item->date_commande)->format('d/m/Y') }}
+                            @if($item->date_livraison)
+                            | 🚚 Livraison prévue: {{ \Carbon\Carbon::parse($item->date_livraison)->format('d/m/Y') }}
+                            @endif
+                        </div>
+                        @endif
+                    </div>
+                    @php
+                        $totalCommande += $item->prix_total;
+                    @endphp
+                    @endforeach
+                </div>
+
+                <!-- Informations générales -->
                 <table class="details-table">
                     <tr>
-                        <td class="label">📦 Produit / Service</td>
-                        <td class="value">{{ $achat->nom_service }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">🔢 Quantité</td>
-                        <td class="value">{{ $achat->quantite }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">💰 Prix unitaire</td>
-                        <td class="value">{{ number_format($achat->prix_unitaire, 0, ',', ' ') }} FCFA</td>
-                    </tr>
-                    <tr>
                         <td class="label">📅 Date de commande</td>
-                        <td class="value">{{ \Carbon\Carbon::parse($achat->date_commande)->format('d/m/Y') }}</td>
+                        <td class="value">{{ $achat->created_at->format('d/m/Y') }}</td>
                     </tr>
-                    @if($achat->date_livraison)
                     <tr>
-                        <td class="label">🚚 Date de livraison prévue</td>
-                        <td class="value">{{ \Carbon\Carbon::parse($achat->date_livraison)->format('d/m/Y') }}</td>
+                        <td class="label">📊 Statut</td>
+                        <td class="value">{{ ucfirst(str_replace('_', ' ', $achat->statut)) }}</td>
                     </tr>
-                    @endif
+                    <tr>
+                        <td class="label">👤 Créé par</td>
+                        <td class="value">{{ $achat->creePar->fullname ?? 'Système' }}</td>
+                    </tr>
                 </table>
             </div>
 
             <!-- Montant total mis en évidence -->
             <div class="highlight-box">
                 <div class="label">MONTANT TOTAL</div>
-                <div class="amount">{{ number_format($achat->prix_total, 0, ',', ' ') }} FCFA</div>
+                <div class="amount">{{ number_format($totalCommande, 0, ',', ' ') }} FCFA</div>
             </div>
 
-            <!-- Information importante -->
             <div class="info-box">
                 <p>
                     <span class="info-icon">📄</span>
@@ -290,7 +321,6 @@
             </p>
         </div>
 
-        <!-- Footer -->
         <div class="footer">
             <p class="signature">Cordialement,<br><strong>{{ config('app.name') }}</strong></p>
             

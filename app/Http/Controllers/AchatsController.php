@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\BonCommande;
 use App\Models\AchatItems;
 use App\Models\Achats;
+use App\Models\AchatPhotos;
 use App\Models\Fournisseurs;
 use App\Models\Permissions;
 use App\Models\Stock;
@@ -60,7 +61,6 @@ class AchatsController extends Controller
                 'items.*.prix_unitaire' => 'required|numeric|min:0',
                 'items.*.date_commande' => 'required|date',
                 'items.*.date_livraison' => 'nullable|date',
-                // ✅ CORRECTION: Valider le tableau de photos
                 'items.*.photos' => 'nullable|array|max:4',
                 'items.*.photos.*' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
             ]);
@@ -95,7 +95,6 @@ class AchatsController extends Controller
                 'bon_commande' => "storage/bon_commande_{$achat->id}.pdf"
             ]);
 
-            // ✅ Créer les items
             $totalDepenses = 0;
 
             foreach ($validated['items'] as $index => $itemData) {
@@ -111,19 +110,21 @@ class AchatsController extends Controller
                     'statut_item' => AchatItems::STATUT_EN_ATTENTE,
                 ]);
 
-                // ✅ CORRECTION: Calculer et sauvegarder le prix total
                 $item->prix_total = $item->calculePrixTotal();
                 $item->save();
 
                 $totalDepenses += $item->prix_total;
 
-                // ✅ CORRECTION: Gérer les photos de l'item
+                // ✅ CORRECTION : Gérer les photos de l'item avec achat_item_id
                 if ($request->hasFile("items.{$index}.photos")) {
                     foreach ($request->file("items.{$index}.photos") as $photo) {
                         $filename = time() . '_' . uniqid() . '.' . $photo->getClientOriginalExtension();
                         $path = $photo->storeAs("achats/items/{$item->id}", $filename, 'public');
 
-                        $item->photos()->create([
+                        // ✅ Utiliser achat_item_id au lieu d'utiliser la relation directement
+                        AchatPhotos::create([
+                            'achat_id' => $achat->id,        // ✅ ID de l'achat principal
+                            'achat_item_id' => $item->id,    // ✅ ID de l'item spécifique
                             'path' => 'storage/' . $path
                         ]);
                     }
@@ -132,7 +133,7 @@ class AchatsController extends Controller
 
             // Mettre à jour le total des dépenses
             $achat->update(['depenses_total' => $totalDepenses]);
-
+            $achat->load(['fournisseur', 'items', 'creePar']);
             DB::commit();
 
             return response()->json([
@@ -141,6 +142,7 @@ class AchatsController extends Controller
                 'message' => 'Achat créé avec succès et email envoyé'
             ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur de validation',
@@ -161,6 +163,130 @@ class AchatsController extends Controller
         }
     }
 
+    public function addBonReception(Request $request, $id): JsonResponse
+    {
+        try {
+            // ✅ LOG POUR DEBUG : Voir ce qui arrive
+            Log::info("=== DÉBUT addBonReception ===");
+            Log::info("Request data:", $request->all());
+            Log::info("Files:", $request->allFiles());
+
+            // ✅ CORRECTION : Validation adaptée au FormData
+            $validated = $request->validate([
+                'items.*.id' => 'required|exists:achat_items,id',
+                'items.*.bon_reception' => 'nullable|file|mimes:pdf|max:5120', // 5MB max
+                'items.*.quantite_recu' => 'required|integer|min:0',
+            ]);
+
+            DB::beginTransaction();
+
+            $achat = Achats::findOrFail($id);
+
+            if ($achat->statut === Achats::ACHAT_ANNULE) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de réceptionner un achat annulé'
+                ], 400);
+            }
+
+            // ✅ VÉRIFICATION : Si items existe bien
+            if (!isset($validated['items']) || empty($validated['items'])) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun item fourni',
+                    'debug' => [
+                        'validated' => $validated,
+                        'request_all' => $request->all()
+                    ]
+                ], 422);
+            }
+
+            foreach ($validated['items'] as $index => $itemData) {
+                Log::info("Traitement item index {$index}:", $itemData);
+
+                $item = AchatItems::findOrFail($itemData['id']);
+
+                if ($item->achat_id !== $achat->id) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => "L'item {$item->id} n'appartient pas à cet achat"
+                    ], 400);
+                }
+
+                $quantiteRecueTotale = $itemData['quantite_recu'];
+                if ($quantiteRecueTotale > $item->quantite) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => "La quantité reçue ({$quantiteRecueTotale}) dépasse la quantité commandée ({$item->quantite}) pour l'item '{$item->nom_service}'"
+                    ], 422);
+                }
+
+                // ✅ Gérer le fichier PDF
+                $bonReceptionPath = null;
+                if ($request->hasFile("items.{$index}.bon_reception")) {
+                    $file = $request->file("items.{$index}.bon_reception");
+                    $fileName = "bon_reception_item_{$item->id}_" . time() . '_' . uniqid() . '.pdf';
+                    $path = $file->storeAs("bon_receptions", $fileName, 'public');
+                    $bonReceptionPath = "storage/" . $path;
+
+                    Log::info("Fichier uploadé : {$bonReceptionPath}");
+                }
+
+                // ✅ Mettre à jour l'item
+                $item->quantite_recu = $quantiteRecueTotale;
+                $item->bon_reception = $bonReceptionPath;
+                $item->date_livraison = now();
+                $item->prix_reel = $quantiteRecueTotale * $item->prix_unitaire;
+
+                // ✅ marquerRecu() sauvegarde ET déclenche l'événement "updated"
+                $item->marquerRecu();
+
+                Log::info("✅ Item #{$item->id} traité - Statut: {$item->statut_item}");
+            }
+
+            // ✅ Mettre à jour le statut global de l'achat
+            $achat->updateStatutGlobal();
+
+            DB::commit();
+
+            Log::info("=== FIN addBonReception - SUCCÈS ===");
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Bon de réception ajouté avec succès',
+                'data' => $achat->load(['items', 'fournisseur'])
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            Log::error("Erreur de validation:", $e->errors());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            Log::error("=== ERREUR addBonReception ===");
+            Log::error("Message : " . $e->getMessage());
+            Log::error("Ligne : " . $e->getLine());
+            Log::error("Fichier : " . $e->getFile());
+            Log::error("Stack trace : " . $e->getTraceAsString());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'ajout du bon de réception',
+                'error' => $e->getMessage(),
+                'line' => $e->getLine()
+            ], 500);
+        }
+    }
+
     public function showAchats(Request $request): JsonResponse
     {
         try {
@@ -177,11 +303,12 @@ class AchatsController extends Controller
                 'creePar:id,fullname,email,role',
                 'fournisseur:id,nom_fournisseurs',
                 'photos:id,achat_id,path',
-                'items:id,achat_id,nom_service,quantite,quantite_recu,prix_unitaire,prix_total,prix_reel,date_commande,statut_item,bon_reception,date_livraison'
+                'items:id,achat_id,nom_service,quantite,quantite_recu,prix_unitaire,prix_total,prix_reel,date_commande,date_livraison,statut_item,bon_reception,date_livraison'
             ])->select(
                 'id',
                 'fournisseur_id',
                 'numero_achat',
+                'bon_commande',
                 'statut',
                 'created_by',
                 'created_at'
@@ -208,13 +335,29 @@ class AchatsController extends Controller
 
             // ✅ Transformer les chemins pour utiliser l'URL complète
             $getAchats->transform(function ($achat) {
+
+                // 🔹 Transformer les photos
                 $achat->photos->transform(function ($photo) {
-                    // Supprimer 'storage/' du début si présent
                     $cleanPath = str_replace('storage/', '', $photo->path);
-                    // Créer l'URL complète
                     $photo->path = url('storage/' . $cleanPath);
                     return $photo;
                 });
+
+                // 🔹 Transformer le bon de commande
+                if ($achat->bon_commande) {
+                    $cleanBC = str_replace('storage/', '', $achat->bon_commande);
+                    $achat->bon_commande = url('storage/' . $cleanBC);
+                }
+
+                // 🔹 Transformer les bons de réception dans les items
+                $achat->items->transform(function ($item) {
+                    if ($item->bon_reception) {
+                        $cleanBR = str_replace('storage/', '', $item->bon_reception);
+                        $item->bon_reception = url('storage/' . $cleanBR);
+                    }
+                    return $item;
+                });
+
                 return $achat;
             });
 
@@ -270,87 +413,98 @@ class AchatsController extends Controller
 
             $validated = $request->validate([
                 'fournisseur_id' => 'sometimes|required|exists:fournisseurs,id',
-                'nom_service' => 'sometimes|required|string|max:300',
-                'quantite' => 'sometimes|required|integer|min:1',
-                'prix_unitaire' => 'sometimes|required|numeric|min:0',
-                'date_commande' => 'sometimes|required|date',
-                'date_livraison' => 'sometimes|required|date',
-                'statut' => ['sometimes', Rule::in([
-                    Achats::ACHAT_COMMANDE,
-                    Achats::ACHAT_REÇU
-                ])],
-                'description' => 'sometimes|nullable',
-                'photos.*' => 'sometimes|image|mimes:jpeg,png,jpg,webp|max:2048',
-                'photos_to_delete' => 'sometimes|json', // IDs des photos à supprimer
+                'statut' => 'sometimes|string',
+                'description' => 'sometimes|nullable|string',
+
+                // ITEMS EXISTANTS UNIQUEMENT
+                'items' => 'sometimes|array',
+                'items.*.id' => 'required|exists:achat_items,id', // IMPORTANT : empêche la création !
+                'items.*.nom_service' => 'sometimes|string|max:500',
+                'items.*.quantite' => 'sometimes|integer|min:1',
+                'items.*.prix_unitaire' => 'sometimes|numeric|min:0',
+                'items.*.date_commande' => 'sometimes|date',
+                'items.*.date_livraison' => 'nullable|date',
+
+                // PHOTOS ITEM
+                'items.*.photos' => 'sometimes|array|max:4',
+                'items.*.photos.*' => 'image|mimes:jpeg,png,jpg,webp|max:2048',
+                'items.*.photos_to_delete' => 'sometimes|array',
             ]);
 
             DB::beginTransaction();
 
-            $achat = Achats::with('photos')->findOrFail($id);
+            $achat = Achats::with('items.photos')->findOrFail($id);
 
-            // Gérer la suppression des photos
-            if ($request->has('photos_to_delete')) {
-                $photosToDelete = json_decode($request->photos_to_delete, true);
+            // 🔹 Mise à jour des infos simples de l'achat
+            $achat->update([
+                'fournisseur_id' => $validated['fournisseur_id'] ?? $achat->fournisseur_id,
+                'statut' => $validated['statut'] ?? $achat->statut,
+                'description' => $validated['description'] ?? $achat->description,
+            ]);
 
-                if (is_array($photosToDelete) && !empty($photosToDelete)) {
-                    foreach ($photosToDelete as $photoId) {
-                        $photo = $achat->photos()->find($photoId);
+            $totalDepenses = 0;
 
-                        if ($photo) {
-                            // Supprimer le fichier physique
-                            $filePath = str_replace('storage/', '', $photo->path);
-                            if (Storage::disk('public')->exists($filePath)) {
-                                Storage::disk('public')->delete($filePath);
+            // 🔹 Mise à jour des items existants uniquement
+            if ($request->has('items')) {
+                foreach ($validated['items'] as $itemData) {
+                    $item = $achat->items()->find($itemData['id']);
+
+                    if (!$item) continue;
+
+                    // Suppression des photos
+                    if (!empty($itemData['photos_to_delete'])) {
+                        foreach ($itemData['photos_to_delete'] as $photoId) {
+                            $photo = $item->photos()->find($photoId);
+                            if ($photo) {
+                                $filePath = str_replace('storage/', '', $photo->path);
+                                if (Storage::disk('public')->exists($filePath)) {
+                                    Storage::disk('public')->delete($filePath);
+                                }
+                                $photo->delete();
                             }
+                        }
+                    }
 
-                            // Supprimer l'enregistrement de la base de données
-                            $photo->delete();
+                    // Mise à jour des champs simples
+                    $item->update([
+                        'nom_service' => $itemData['nom_service'] ?? $item->nom_service,
+                        'quantite' => $itemData['quantite'] ?? $item->quantite,
+                        'prix_unitaire' => $itemData['prix_unitaire'] ?? $item->prix_unitaire,
+                        'date_commande' => $itemData['date_commande'] ?? $item->date_commande,
+                        'date_livraison' => $itemData['date_livraison'] ?? $item->date_livraison,
+                    ]);
+
+                    // Recalcul
+                    $item->prix_total = $item->calculePrixTotal();
+                    $item->save();
+
+                    $totalDepenses += $item->prix_total;
+
+                    // Ajout de nouvelles photos
+                    if (isset($itemData['photos'])) {
+                        foreach ($itemData['photos'] as $photo) {
+                            $filename = time() . '_' . uniqid() . '.' . $photo->getClientOriginalExtension();
+                            $path = $photo->storeAs("achats/items/{$item->id}", $filename, 'public');
+
+                            $item->photos()->create([
+                                'path' => 'storage/' . $path,
+                                'achat_id' => $achat->id,
+                                'achat_item_id' => $item->id,
+                            ]);
                         }
                     }
                 }
             }
 
-            // Vérifier le nombre total de photos après suppression
-            $currentPhotosCount = $achat->photos()->count();
-            $newPhotosCount = $request->hasFile('photos') ? count($request->file('photos')) : 0;
+            // Mise à jour des dépenses
+            $achat->update(['depenses_total' => $totalDepenses]);
 
-            if (($currentPhotosCount + $newPhotosCount) > 4) {
-                DB::rollBack();
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Vous ne pouvez avoir que 4 photos maximum',
-                ], 422);
-            }
-
-            // Recalcul du prix_total si changement de quantité ou de prix
-            if (isset($validated['quantite']) || isset($validated['prix_unitaire'])) {
-                $quantite = $validated['quantite'] ?? $achat->quantite;
-                $prixUnitaire = $validated['prix_unitaire'] ?? $achat->prix_unitaire;
-                $validated['prix_total'] = $quantite * $prixUnitaire;
-            }
-
-            // Retirer photos_to_delete avant l'update
-            unset($validated['photos_to_delete']);
-
-            // Mettre à jour les champs simples
-            $achat->update($validated);
-
-            // Ajouter les nouvelles photos
-            if ($request->hasFile('photos')) {
-                foreach ($request->file('photos') as $photo) {
-                    $filename = time() . '_' . uniqid() . '.' . $photo->getClientOriginalExtension();
-                    $path = $photo->storeAs('achats', $filename, 'public');
-
-                    $achat->photos()->create([
-                        'path' => 'storage/' . $path
-                    ]);
-                }
-            }
             DB::commit();
+
             return response()->json([
                 'success' => true,
                 'message' => "Achat mis à jour avec succès",
-                'data' => $achat->fresh('photos')
+                'data' => $achat->fresh(['items.photos', 'fournisseur']),
             ], 200);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -362,11 +516,12 @@ class AchatsController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => "Erreur survenue lors de la modification de l'achat",
+                'message' => "Erreur lors de la modification",
                 'errors' => $e->getMessage()
             ], 500);
         }
     }
+
 
     public function marqueAnnule($id): JsonResponse
     {

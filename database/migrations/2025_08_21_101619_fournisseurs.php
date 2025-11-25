@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('email')->nullable();
             $table->string('telephone')->nullable();
             $table->text('adresse')->nullable();
-            $table->text('description')->nullable(); // Services proposés
+            $table->json('services')->nullable(); // Services proposés
             
             // Audit trail - Relation polymorphe
             $table->unsignedBigInteger('created_by'); // ID de celui qui a créé

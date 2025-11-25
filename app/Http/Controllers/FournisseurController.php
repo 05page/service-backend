@@ -42,8 +42,9 @@ class FournisseurController extends Controller
                 'nom_fournisseurs' => 'required|string|max:300',
                 'email' => 'required|email',
                 'telephone' => 'required|string|max:10',
-                'description' => 'required|string|max:500',
-                'adresse' => 'required|string|max:300'
+                'adresse' => 'required|string|max:500',
+                'services' => 'required|array|min:1',
+                'services.*' => 'required|string|max:255',
             ]);
             DB::beginTransaction();
 
@@ -60,7 +61,7 @@ class FournisseurController extends Controller
                 'email' => $validator['email'],
                 'telephone' => $validator['telephone'],
                 'adresse' => $validator['adresse'],
-                'description' => $validator['description'],
+                'services' => $validator['services'],
                 'created_by' => $createur->id
             ]);
 
@@ -97,7 +98,7 @@ class FournisseurController extends Controller
                 'email',
                 'telephone',
                 'adresse',
-                'description',
+                'services',
                 'actif',
                 'created_by',
                 'created_at'
@@ -134,7 +135,7 @@ class FournisseurController extends Controller
                 'email',
                 'telephone',
                 'adresse',
-                'description',
+                'services',
                 'actif',
                 'created_by',
                 'created_at'
@@ -163,17 +164,19 @@ class FournisseurController extends Controller
                 ], 403);
             }
 
+            $fournisseur = Fournisseurs::findOrFail($id);
             $validator = $request->validate([
                 'nom_fournisseurs' => 'sometimes|string|max:300',
                 'email' => 'sometimes|email|unique:fournisseurs,email,' . $id,
                 'telephone' => 'sometimes|string|max:10',
-                'description' => 'sometimes|string|max:500',
+                'services' => 'sometimes|array|min:1',
+                'services.*' => 'required|string|max:255',
                 'adresse' => 'sometimes|string|max:300'
             ]);
 
-            $fournisseur = Fournisseurs::findOrFail($id);
+            DB::beginTransaction();
             $fournisseur->update($validator);
-
+            DB::commit();
             return response()->json([
                 'success' => true,
                 'data' => $fournisseur->load('creePar'),
@@ -186,6 +189,7 @@ class FournisseurController extends Controller
                 'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => "Erreur survenue lors de la mise à jour du fournisseur",

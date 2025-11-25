@@ -15,13 +15,14 @@ class Fournisseurs extends Model
         'email',
         'telephone',
         'adresse',
-        'description',
+        'services',
         'created_by',
         'actif'
     ];
 
     protected $casts = [
         'actif' => 'boolean',
+        'services'=> 'array'
     ];
 
     /**
@@ -60,5 +61,13 @@ class Fournisseurs extends Model
     {
         $this->actif = true;
         return $this->save();
+    }
+
+    public function getServicesTextAttribute(): string
+    {
+        if (!$this->services || !is_array($this->services)) {
+            return '';
+        }
+        return implode(', ', $this->services);
     }
 }
