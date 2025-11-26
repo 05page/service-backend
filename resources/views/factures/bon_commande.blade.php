@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-
 <head>
     <meta charset="UTF-8">
     <title>Bon de Commande #{{ $achat->numero_achat }}</title>
     <style>
+        /* ... Vos styles existants ... */
         * {
             margin: 0;
             padding: 0;
@@ -27,7 +27,6 @@
             position: relative;
         }
 
-        /* Filigrane */
         .watermark {
             position: fixed;
             top: 50%;
@@ -41,7 +40,6 @@
             color: rgba(59, 130, 246, 0.05);
         }
 
-        /* En-tête */
         .header {
             margin-bottom: 25px;
             overflow: hidden;
@@ -93,7 +91,6 @@
             margin-top: 4px;
         }
 
-        /* Section fournisseur */
         .billing-section {
             margin: 30px 0;
             overflow: hidden;
@@ -131,7 +128,6 @@
             margin-bottom: 6px;
         }
 
-        /* Tableau des articles */
         .articles-section {
             margin: 20px 0;
         }
@@ -170,7 +166,6 @@
             text-align: center;
         }
 
-        /* Totaux */
         .totaux-section {
             margin-top: 20px;
             overflow: hidden;
@@ -204,7 +199,6 @@
             font-size: 13px;
         }
 
-        /* Description */
         .description-section {
             margin: 20px 0;
             padding: 12px;
@@ -224,7 +218,6 @@
             line-height: 1.5;
         }
 
-        /* Footer */
         .footer {
             margin-top: 30px;
             text-align: center;
@@ -250,10 +243,30 @@
             color: #666;
             margin-top: 2px;
         }
+
+        .debug-section {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 9px;
+        }
     </style>
 </head>
 
 <body>
+    <?php
+    // ✅ DEBUG: Logger les données reçues dans le template
+    \Log::info('📄 Données reçues dans bon_commande.blade.php:', [
+        'achat_existe' => isset($achat) ? 'OUI' : 'NON',
+        'achat_id' => $achat->id ?? 'NULL',
+        'numero_achat' => $achat->numero_achat ?? 'NULL',
+        'items_existe' => isset($achat->items) ? 'OUI' : 'NON',
+        'items_count' => isset($achat->items) ? $achat->items->count() : 0,
+        'fournisseur_existe' => isset($achat->fournisseur) ? 'OUI' : 'NON',
+    ]);
+    ?>
+
     <!-- Filigrane -->
     <div class="watermark">BON DE COMMANDE</div>
 
@@ -262,7 +275,7 @@
         <div class="header clearfix">
             <div class="achat-title">
                 <h1>BON DE COMMANDE</h1>
-                <p class="facture-numero">N° {{ $achat->numero_achat ?? str_pad($achat->id, 6, '0', STR_PAD_LEFT) }}</p>
+                <p class="facture-numero">N° {{ $achat->numero_achat ?? 'N/A' }}</p>
                 <p class="facture-date">Date: {{ $achat->created_at->format('d/m/Y') }}</p>
             </div>
 
@@ -280,15 +293,19 @@
         <div class="billing-section clearfix">
             <div class="billing-info billing-left">
                 <h3>FOURNISSEUR</h3>
-                <p class="fournisseur-name">{{ $achat->fournisseur->nom_fournisseurs ?? 'Non défini' }}</p>
-                @if(isset($achat->fournisseur->adresse) && $achat->fournisseur->adresse)
-                <p>{{ $achat->fournisseur->adresse }}</p>
-                @endif
-                @if(isset($achat->fournisseur->telephone) && $achat->fournisseur->telephone)
-                <p>Tél: {{ $achat->fournisseur->telephone }}</p>
-                @endif
-                @if(isset($achat->fournisseur->email) && $achat->fournisseur->email)
-                <p>Email: {{ $achat->fournisseur->email }}</p>
+                @if(isset($achat->fournisseur))
+                    <p class="fournisseur-name">{{ $achat->fournisseur->nom_fournisseurs ?? 'Non défini' }}</p>
+                    @if($achat->fournisseur->adresse)
+                    <p>{{ $achat->fournisseur->adresse }}</p>
+                    @endif
+                    @if($achat->fournisseur->telephone)
+                    <p>Tél: {{ $achat->fournisseur->telephone }}</p>
+                    @endif
+                    @if($achat->fournisseur->email)
+                    <p>Email: {{ $achat->fournisseur->email }}</p>
+                    @endif
+                @else
+                    <p class="fournisseur-name">Fournisseur non chargé</p>
                 @endif
             </div>
 
@@ -322,10 +339,10 @@
                             <td>
                                 <strong>{{ $item->nom_service ?? 'Non défini' }}</strong>
                                 <div class="item-details">
-                                    @if(isset($item->date_commande) && $item->date_commande)
+                                    @if($item->date_commande)
                                     Commandé le: {{ \Carbon\Carbon::parse($item->date_commande)->format('d/m/Y') }}
                                     @endif
-                                    @if(isset($item->date_livraison) && $item->date_livraison)
+                                    @if($item->date_livraison)
                                     <br>Livraison prévue: {{ \Carbon\Carbon::parse($item->date_livraison)->format('d/m/Y') }}
                                     @endif
                                 </div>
@@ -341,7 +358,7 @@
                     @else
                         <tr>
                             <td colspan="4" class="text-center" style="padding: 20px; color: #999;">
-                                Aucun article dans cette commande
+                                 Aucun article dans cette commande (Items non chargés)
                             </td>
                         </tr>
                     @endif
@@ -385,5 +402,4 @@
         </div>
     </div>
 </body>
-
 </html>

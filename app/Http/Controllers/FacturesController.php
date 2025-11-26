@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\AchatItems;
 use App\Models\Achats;
 use App\Models\Factures;
 use App\Models\Permissions;
@@ -90,12 +91,12 @@ class FacturesController extends Controller
         try {
             // ✅ Vérifier si facture existe déjà
             $factureExistante = Factures::where('vente_id', $vente->id)->first();
-            
+
             if ($factureExistante) {
                 // ✅ Incrémenter le compteur de copies
                 $factureExistante->increment('nombre_copies');
                 $nombreCopies = $factureExistante->nombre_copies;
-                
+
                 DB::commit();
                 return $this->telechargerFacture($factureExistante, $vente, $nombreCopies);
             }
@@ -130,7 +131,7 @@ class FacturesController extends Controller
             ],
             'articles' => $vente->items->map(function ($item) {
                 return [
-                    'description' => $item->stock->achat->nom_service ?? 'Article',
+                    'description' => $item->stock->achatItem->nom_service ?? 'Article',
                     'code' => $item->stock->code_produit ?? 'N/A',
                     'quantite' => $item->quantite,
                     'prix_unitaire' => $item->prix_unitaire,
@@ -155,8 +156,8 @@ class FacturesController extends Controller
                 'defaultFont' => 'Arial',
             ]);
 
-        $nomFichier = $nombreCopies === 0 
-            ? "{$facture->numero_facture}.pdf" 
+        $nomFichier = $nombreCopies === 0
+            ? "{$facture->numero_facture}.pdf"
             : "{$facture->numero_facture}_COPIE_{$nombreCopies}.pdf";
 
         return $pdf->download($nomFichier);
@@ -184,7 +185,7 @@ class FacturesController extends Controller
                 // ✅ Incrémenter le compteur de copies
                 $recuExistant->increment('nombre_copies');
                 $nombreCopies = $recuExistant->nombre_copies;
-                
+
                 DB::commit();
                 return $this->telechargerRecu($recuExistant, $vente, $nombreCopies);
             }
@@ -223,7 +224,7 @@ class FacturesController extends Controller
             ],
             'articles' => $vente->items->map(function ($item) {
                 return [
-                    'description' => $item->stock->achat->nom_service ?? 'Article',
+                    'description' => $item->stock->achatItem->nom_service ?? 'Article',
                     'code' => $item->stock->code_produit ?? 'N/A',
                     'quantite' => $item->quantite,
                     'prix_unitaire' => $item->prix_unitaire,
@@ -258,8 +259,8 @@ class FacturesController extends Controller
                 'defaultFont' => 'Arial',
             ]);
 
-        $nomFichier = $nombreCopies === 0 
-            ? "{$recu->numero_recu}.pdf" 
+        $nomFichier = $nombreCopies === 0
+            ? "{$recu->numero_recu}.pdf"
             : "{$recu->numero_recu}_COPIE_{$nombreCopies}.pdf";
 
         return $pdf->download($nomFichier);
@@ -279,14 +280,15 @@ class FacturesController extends Controller
                 ], 403);
             }
 
-            // Récupérer l'achat avec toutes les relations nécessaires
+            // ✅ CORRECTION : Charger aussi les items
             $achat = Achats::with([
                 'fournisseur:id,nom_fournisseurs,email,telephone,adresse',
-                'creePar:id,fullname,email'
+                'creePar:id,fullname,email',
+                'items' // ✅ Ajouter cette relation
             ])->findOrFail($achatId);
 
-            // Vérifier que l'achat est reçu (règle métier stricte)
-            if ($achat->statut !== Achats::ACHAT_REÇU) {
+            // Vérifier que l'achat est reçu
+            if ($achat->statut !== Achats::ACHAT_REÇU && $achat->statut !== Achats::ACHAT_PARTIEL) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Impossible de générer une facture pour un achat non reçu.'
@@ -295,36 +297,34 @@ class FacturesController extends Controller
 
             DB::beginTransaction();
 
-            // ✅ Vérification facture existante
+            // Vérification facture existante
             $factureExistante = Factures::where('achat_id', $achatId)->first();
-            
+
             if ($factureExistante) {
-                // ✅ Incrémenter le compteur de copies
                 $factureExistante->increment('nombre_copies');
                 $nombreCopies = $factureExistante->nombre_copies;
-                
+
                 DB::commit();
-                
-                // Préparation des données pour le PDF
+
+                // ✅ CORRECTION : Enlever $items du paramètre
                 $donneesFacture = $this->preparerDonneesFactureAchat($factureExistante, $achat, $nombreCopies);
-                
+
                 return $this->telechargerFactureAchat($factureExistante, $donneesFacture, $nombreCopies);
             }
 
-            // ✅ Création de la facture en base (ORIGINAL)
+            // Création de la facture
             $facture = Factures::create([
                 'achat_id' => $achatId,
                 'created_by' => Auth::id(),
-                'nombre_copies' => 0, // 0 = ORIGINAL
+                'nombre_copies' => 0,
             ]);
 
             DB::commit();
 
-            // Préparation des données pour le PDF
+            // ✅ CORRECTION : Enlever $items du paramètre
             $donneesFacture = $this->preparerDonneesFactureAchat($facture, $achat, 0);
-            
+
             return $this->telechargerFactureAchat($facture, $donneesFacture, 0);
-            
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
@@ -340,8 +340,21 @@ class FacturesController extends Controller
         }
     }
 
+    // ✅ CORRECTION : Enlever le paramètre $items et utiliser $achat->items
     private function preparerDonneesFactureAchat(Factures $facture, Achats $achat, int $nombreCopies = 0): array
     {
+        // Préparer les articles depuis les items de l'achat
+        $articles = [];
+        foreach ($achat->items as $item) {
+            $articles[] = [
+                'description' => $item->nom_service,
+                'numero_achat' => $achat->numero_achat,
+                'quantite' => $item->quantite_recu,
+                'prix_unitaire' => $item->prix_unitaire,
+                'total' => $item->prix_total
+            ];
+        }
+
         return [
             'facture' => $facture,
             'achat' => $achat,
@@ -353,18 +366,10 @@ class FacturesController extends Controller
                 'telephone' => $achat->fournisseur->telephone,
                 'adresse' => $achat->fournisseur->adresse
             ],
-            'articles' => [
-                [
-                    'description' => $achat->nom_service,
-                    'numero_achat' => $achat->numero_achat,
-                    'quantite' => $achat->quantite,
-                    'prix_unitaire' => $achat->prix_unitaire,
-                    'total' => $achat->prix_total
-                ]
-            ],
+            'articles' => $articles, // ✅ Utiliser le tableau d'articles construit
             'totaux' => [
-                'sous_total' => $achat->prix_total,
-                'montant_total' => $achat->prix_total
+                'sous_total' => $achat->depenses_total, // ✅ CORRECTION : depenses_total (avec 's')
+                'montant_total' => $achat->depenses_total
             ],
             'entreprise' => $this->getEntrepriseInfo(),
             'date_generation' => now()->format('d/m/Y')
@@ -385,8 +390,8 @@ class FacturesController extends Controller
                 'margin-right' => 10,
             ]);
 
-        $nomFichier = $nombreCopies === 0 
-            ? "{$facture->numero_facture}.pdf" 
+        $nomFichier = $nombreCopies === 0
+            ? "{$facture->numero_facture}.pdf"
             : "{$facture->numero_facture}_COPIE_{$nombreCopies}.pdf";
 
         return $pdf->download($nomFichier);

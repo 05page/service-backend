@@ -67,7 +67,7 @@ class AchatsController extends Controller
 
             DB::beginTransaction();
 
-            // Créer l'achat principal
+            // 1️⃣ Créer l'achat principal
             $achat = Achats::create([
                 'fournisseur_id' => $validated['fournisseur_id'],
                 'statut' => $validated['statut'] ?? Achats::ACHAT_COMMANDE,
@@ -76,29 +76,15 @@ class AchatsController extends Controller
                 'created_by' => Auth::id()
             ]);
 
-            // Générer le PDF du bon de commande
-            $pdf = Pdf::loadView('factures.bon_commande', ['achat' => $achat])
-                ->setPaper('A4', 'landscape')
-                ->setOptions([
-                    'isHtml5ParserEnabled' => true,
-                    'isPhpEnabled' => true,
-                    'defaultFont' => 'Arial',
-                ]);
-
-            $pdfPath = storage_path("app/public/bon_commande_{$achat->id}.pdf");
-            $pdf->save($pdfPath);
-
-            // Envoyer l'email au fournisseur
-            Mail::to($achat->fournisseur->email)->queue(new BonCommande($achat, $pdfPath));
-
-            $achat->update([
-                'bon_commande' => "storage/bon_commande_{$achat->id}.pdf"
+            \Log::info('✅ Achat créé', [
+                'id' => $achat->id,
+                'numero' => $achat->numero_achat
             ]);
 
             $totalDepenses = 0;
 
+            // 2️⃣ Créer TOUS les items AVANT le PDF
             foreach ($validated['items'] as $index => $itemData) {
-                // Créer l'item
                 $item = $achat->items()->create([
                     'nom_service' => $itemData['nom_service'],
                     'quantite' => $itemData['quantite'],
@@ -115,25 +101,111 @@ class AchatsController extends Controller
 
                 $totalDepenses += $item->prix_total;
 
-                // ✅ CORRECTION : Gérer les photos de l'item avec achat_item_id
+                \Log::info('✅ Item créé', [
+                    'id' => $item->id,
+                    'nom_service' => $item->nom_service,
+                    'quantite' => $item->quantite,
+                    'prix_total' => $item->prix_total
+                ]);
+
+                // Gérer les photos de l'item
                 if ($request->hasFile("items.{$index}.photos")) {
                     foreach ($request->file("items.{$index}.photos") as $photo) {
                         $filename = time() . '_' . uniqid() . '.' . $photo->getClientOriginalExtension();
                         $path = $photo->storeAs("achats/items/{$item->id}", $filename, 'public');
 
-                        // ✅ Utiliser achat_item_id au lieu d'utiliser la relation directement
-                        AchatPhotos::create([
-                            'achat_id' => $achat->id,        // ✅ ID de l'achat principal
-                            'achat_item_id' => $item->id,    // ✅ ID de l'item spécifique
+                        $item->photos()->create([
                             'path' => 'storage/' . $path
                         ]);
                     }
                 }
             }
 
-            // Mettre à jour le total des dépenses
+            // 3️⃣ Mettre à jour le total des dépenses
             $achat->update(['depenses_total' => $totalDepenses]);
-            $achat->load(['fournisseur', 'items', 'creePar']);
+
+            // 4️⃣ CRITIQUE: Recharger EXPLICITEMENT avec toutes les relations
+            $achat->load([
+                'fournisseur',
+                'items',
+                'creePar'
+            ]);
+
+            // 5️⃣ VÉRIFICATION AVANT PDF - Debug
+            \Log::info('📄 Vérification données AVANT génération PDF:', [
+                'achat_id' => $achat->id,
+                'numero_achat' => $achat->numero_achat,
+                'fournisseur_existe' => $achat->fournisseur ? 'OUI' : 'NON',
+                'fournisseur_nom' => $achat->fournisseur->nom_fournisseurs ?? 'NULL',
+                'items_count' => $achat->items->count(),
+                'premier_item' => $achat->items->isNotEmpty() ? [
+                    'id' => $achat->items->first()->id,
+                    'nom_service' => $achat->items->first()->nom_service,
+                    'quantite' => $achat->items->first()->quantite,
+                    'prix_unitaire' => $achat->items->first()->prix_unitaire,
+                    'prix_total' => $achat->items->first()->prix_total,
+                ] : 'AUCUN ITEM',
+                'creePar_existe' => $achat->creePar ? 'OUI' : 'NON',
+                'creePar_nom' => $achat->creePar->fullname ?? 'NULL',
+            ]);
+
+            // 6️⃣ Vérifier qu'il y a bien des items
+            if ($achat->items->isEmpty()) {
+                \Log::error('ERREUR CRITIQUE: Aucun item trouvé avant génération PDF');
+                throw new \Exception('Aucun item créé pour cet achat');
+            }
+
+            // 7️⃣ Générer le PDF
+            try {
+                \Log::info('Début génération PDF...');
+
+                $pdf = Pdf::loadView('factures.bon_commande', [
+                    'achat' => $achat
+                ])
+                    ->setPaper('A4', 'landscape')
+                    ->setOptions([
+                        'isHtml5ParserEnabled' => true,
+                        'isPhpEnabled' => true,
+                        'defaultFont' => 'Arial',
+                    ]);
+
+                $pdfPath = storage_path("app/public/bon_commande_{$achat->id}.pdf");
+                $pdf->save($pdfPath);
+
+                \Log::info('PDF généré avec succès', [
+                    'path' => $pdfPath,
+                    'size' => filesize($pdfPath) . ' bytes'
+                ]);
+
+                // Mettre à jour le chemin du bon de commande
+                $achat->update([
+                    'bon_commande' => "storage/bon_commande_{$achat->id}.pdf"
+                ]);
+
+                // 8️⃣ Envoyer l'email
+                if ($achat->fournisseur && $achat->fournisseur->email) {
+                    //pour envoyer le mail avec queue utilise cette commande en terminal:php artisan queue:work ou sinon remplace ->queue() par ->send()
+                    Mail::to($achat->fournisseur->email)->queue(
+                        new BonCommande($achat, $pdfPath)
+                    );
+                    \Log::info('Email envoyé', [
+                        'to' => $achat->fournisseur->email
+                    ]);
+                } else {
+                    \Log::warning('Email fournisseur non disponible');
+                }
+            } catch (\Exception $pdfError) {
+                \Log::error('Erreur génération PDF:', [
+                    'message' => $pdfError->getMessage(),
+                    'file' => $pdfError->getFile(),
+                    'line' => $pdfError->getLine(),
+                    'trace' => $pdfError->getTraceAsString()
+                ]);
+
+                // Ne pas bloquer la création si le PDF échoue
+                // mais avertir l'utilisateur
+            }
+
             DB::commit();
 
             return response()->json([
@@ -142,7 +214,6 @@ class AchatsController extends Controller
                 'message' => 'Achat créé avec succès et email envoyé'
             ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur de validation',
@@ -150,9 +221,11 @@ class AchatsController extends Controller
             ], 422);
         } catch (\Exception $e) {
             DB::rollBack();
+
             \Log::error('Erreur création achat:', [
                 'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]);
 
             return response()->json([

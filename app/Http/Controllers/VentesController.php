@@ -274,7 +274,7 @@ class VentesController extends Controller
                         return [
                             'id' => $item->id,
                             'stock_id' => $item->stock_id,
-                            'nom_produit' => $item->stock->nom_produit ?? 'Article', // ✅ Utilise l'attribut
+                            'nom_produit' => $item->stock->achatItem->nom_service ?? 'Article', // ✅ Utilise l'attribut
                             'code_produit' => $item->stock->code_produit ?? 'N/A',
                             'quantite' => $item->quantite,
                             'prix_unitaire' => $item->prix_unitaire,
@@ -319,7 +319,7 @@ class VentesController extends Controller
                     : "Vos ventes ont été récupérées avec succès"
             ], 200);
         } catch (\Exception $e) {
-            \Log::error('❌ Erreur showVentes:', [
+            \Log::error('Erreur showVentes:', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
@@ -336,10 +336,16 @@ class VentesController extends Controller
     public function historiquePaiement($id): JsonResponse
     {
         try {
-            $query = Ventes::with([
-                'paiements:id,payable_id,montant_verse,date_paiement'
-            ])->select('id', 'reference');
-            $vente = $query->orderBy('created_at', 'desc')->findOrFail($id);
+            $vente = Ventes::with([
+                'paiements' => function ($query) {
+                    // ✅ IMPORTANT : Inclure payable_type pour la relation polymorphique
+                    $query->select('id', 'payable_id', 'payable_type', 'montant_verse', 'date_paiement')
+                        ->orderBy('date_paiement', 'desc');
+                }
+            ])
+                ->select('id', 'reference')
+                ->findOrFail($id);
+
             $venteHistorique = [
                 'id' => $vente->id,
                 'reference' => $vente->reference,
@@ -571,7 +577,7 @@ class VentesController extends Controller
             $user = Auth::user();
 
             $query = Ventes::with([
-                'items.stock.achat:id,nom_service',
+                'items.stock.achat.items:achat_id,nom_service', // Charger tous les items de l'achat
                 'commissionnaire:id,fullname,taux_commission',
                 'paiements:id,payable_id,montant_verse,date_paiement'
             ])->select(
@@ -615,7 +621,7 @@ class VentesController extends Controller
                         return [
                             'id' => $item->id,
                             'stock_id' => $item->stock_id,
-                            'nom_produit' => $item->stock->achat->nom_service ?? 'Article',
+                            'nom_produit' => $item->stock->achatItem->nom_service ?? 'Article',
                             'code_produit' => $item->stock->code_produit ?? 'N/A',
                             'quantite' => $item->quantite,
                             'prix_unitaire' => $item->prix_unitaire,
