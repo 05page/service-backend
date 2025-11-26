@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Bon de Commande #{{ $achat->id }}</title>
+    <title>Bon de Commande #{{ $achat->numero_achat }}</title>
     <style>
         * {
             margin: 0;
@@ -244,6 +244,12 @@
             font-weight: bold;
             color: #3b82f6;
         }
+
+        .item-details {
+            font-size: 9px;
+            color: #666;
+            margin-top: 2px;
+        }
     </style>
 </head>
 
@@ -256,11 +262,8 @@
         <div class="header clearfix">
             <div class="achat-title">
                 <h1>BON DE COMMANDE</h1>
-                <p class="facture-numero">N° {{ str_pad($achat->id, 6, '0', STR_PAD_LEFT) }}</p>
-                <p class="facture-date">Date: {{ \Carbon\Carbon::parse($achat->date_commande)->format('d/m/Y') }}</p>
-                @if($achat->date_livraison)
-                <p class="facture-date">Livraison prévue: {{ \Carbon\Carbon::parse($achat->date_livraison)->format('d/m/Y') }}</p>
-                @endif
+                <p class="facture-numero">N° {{ $achat->numero_achat ?? str_pad($achat->id, 6, '0', STR_PAD_LEFT) }}</p>
+                <p class="facture-date">Date: {{ $achat->created_at->format('d/m/Y') }}</p>
             </div>
 
             <div class="entreprise-info">
@@ -277,22 +280,22 @@
         <div class="billing-section clearfix">
             <div class="billing-info billing-left">
                 <h3>FOURNISSEUR</h3>
-                <p class="fournisseur-name">{{ $achat->fournisseur->nom_fournisseurs }}</p>
-                @if($achat->fournisseur->adresse)
+                <p class="fournisseur-name">{{ $achat->fournisseur->nom_fournisseurs ?? 'Non défini' }}</p>
+                @if(isset($achat->fournisseur->adresse) && $achat->fournisseur->adresse)
                 <p>{{ $achat->fournisseur->adresse }}</p>
                 @endif
-                @if($achat->fournisseur->telephone)
+                @if(isset($achat->fournisseur->telephone) && $achat->fournisseur->telephone)
                 <p>Tél: {{ $achat->fournisseur->telephone }}</p>
                 @endif
-                @if($achat->fournisseur->email)
+                @if(isset($achat->fournisseur->email) && $achat->fournisseur->email)
                 <p>Email: {{ $achat->fournisseur->email }}</p>
                 @endif
             </div>
 
             <div class="billing-info">
                 <h3>STATUT DE LA COMMANDE</h3>
-                <p><strong>État:</strong> {{ $achat->statut ?? 'En cours' }}</p>
-                <p><strong>Créé par:</strong> {{ $achat->creePar->name ?? 'Système' }}</p>
+                <p><strong>État:</strong> {{ ucfirst(str_replace('_', ' ', $achat->statut ?? 'En cours')) }}</p>
+                <p><strong>Créé par:</strong> {{ $achat->creePar->fullname ?? 'Système' }}</p>
                 <p><strong>Date de création:</strong> {{ $achat->created_at->format('d/m/Y H:i') }}</p>
             </div>
         </div>
@@ -313,20 +316,46 @@
                     $totalGeneral = 0;
                     @endphp
 
-                    @foreach($achat->items as $item)
-                    <tr>
-                        <td>{{ $achat->nom_service }}</td>
-                        <td class="text-center">{{ $item->quantite }}</td>
-                        <td class="text-right prix-amount">{{ number_format($item->prix_unitaire, 0, ',', ' ') }} FCFA</td>
-                        <td class="text-right prix-amount">{{ number_format($item->prix_total, 0, ',', ' ') }} FCFA</td>
-                    </tr>
-                    @php
-                    $totalGeneral += $item->prix_total;
-                    @endphp
-                    @endforeach
+                    @if(isset($achat->items) && $achat->items->count() > 0)
+                        @foreach($achat->items as $item)
+                        <tr>
+                            <td>
+                                <strong>{{ $item->nom_service ?? 'Non défini' }}</strong>
+                                <div class="item-details">
+                                    @if(isset($item->date_commande) && $item->date_commande)
+                                    Commandé le: {{ \Carbon\Carbon::parse($item->date_commande)->format('d/m/Y') }}
+                                    @endif
+                                    @if(isset($item->date_livraison) && $item->date_livraison)
+                                    <br>Livraison prévue: {{ \Carbon\Carbon::parse($item->date_livraison)->format('d/m/Y') }}
+                                    @endif
+                                </div>
+                            </td>
+                            <td class="text-center">{{ $item->quantite ?? 0 }}</td>
+                            <td class="text-right prix-amount">{{ number_format($item->prix_unitaire ?? 0, 0, ',', ' ') }} FCFA</td>
+                            <td class="text-right prix-amount">{{ number_format($item->prix_total ?? 0, 0, ',', ' ') }} FCFA</td>
+                        </tr>
+                        @php
+                        $totalGeneral += ($item->prix_total ?? 0);
+                        @endphp
+                        @endforeach
+                    @else
+                        <tr>
+                            <td colspan="4" class="text-center" style="padding: 20px; color: #999;">
+                                Aucun article dans cette commande
+                            </td>
+                        </tr>
+                    @endif
                 </tbody>
             </table>
         </div>
+
+        <!-- Description -->
+        @if(isset($achat->description) && $achat->description)
+        <div class="description-section">
+            <h3>Description / Remarques</h3>
+            <p>{{ $achat->description }}</p>
+        </div>
+        @endif
 
         <!-- Totaux -->
         <div class="totaux-section clearfix">

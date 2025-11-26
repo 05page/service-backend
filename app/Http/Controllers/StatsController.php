@@ -64,8 +64,8 @@ class StatsController extends Controller
                         ->whereYear('created_at', Carbon::now()->year)->count('nom_client'),
                     // Achats
                     'total_achat_commande' => AchatItems::count(),
-                    'total_achats_recu' => Achats::whereIn('statut', [Achats::ACHAT_REÇU, Achats::ACHAT_PARTIEL])->count(),
-                    'achats_non_recu' => Achats::where('statut', Achats::ACHAT_COMMANDE)->count(),
+                    'total_achats_recu' => AchatItems::whereIn('statut_item', [AchatItems::STATUT_PARTIEL, AchatItems::STATUT_RECU])->count(),
+                    'achats_non_recu' => AchatItems::where('statut_item', AchatItems::STATUT_EN_ATTENTE)->count(),
                     'achats_annule' => Achats::where('statut', Achats::ACHAT_ANNULE)->count(),
                     'total_prix_achats' => $totalAchat,
 

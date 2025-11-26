@@ -47,10 +47,18 @@ class Stock extends Model
         return $this->belongsTo(Achats::class, 'achat_id');
     }
 
-    // public function achatItems(): BelongsTo
-    // {
-    //     return $this->belongsTo(AchatItems::class,'');
-    // }
+    public function achatItem()
+    {
+        // Si vous avez une relation directe via achat_id
+        return $this->hasOneThrough(
+            AchatItems::class,
+            Achats::class,
+            'id',        // Foreign key sur achats
+            'achat_id',  // Foreign key sur achat_items
+            'achat_id',  // Local key sur stock
+            'id'         // Local key sur achats
+        )->oldest(); // Prendre le premier item
+    }
 
     public function photos(): HasMany
     {
@@ -101,9 +109,7 @@ class Stock extends Model
         return $query->where('sortie_stock', '>', 0);
     }
 
-    // -------------------------
     // Helpers
-    // -------------------------
     public function isActif(): bool
     {
         return (bool) $this->actif;

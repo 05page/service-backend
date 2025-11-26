@@ -302,8 +302,8 @@ class AchatsController extends Controller
             $query = Achats::with([
                 'creePar:id,fullname,email,role',
                 'fournisseur:id,nom_fournisseurs',
-                'photos:id,achat_id,path',
-                'items:id,achat_id,nom_service,quantite,quantite_recu,prix_unitaire,prix_total,prix_reel,date_commande,date_livraison,statut_item,bon_reception,date_livraison'
+                'items:id,achat_id,nom_service,quantite,quantite_recu,prix_unitaire,prix_total,prix_reel,date_commande,statut_item,bon_reception,date_livraison',
+                'items.photos:id,achat_item_id,path'
             ])->select(
                 'id',
                 'fournisseur_id',
@@ -333,28 +333,53 @@ class AchatsController extends Controller
 
             $getAchats = $query->orderBy('created_at', 'desc')->get();
 
-            // ✅ Transformer les chemins pour utiliser l'URL complète
+            // ✅ Transformer les chemins
             $getAchats->transform(function ($achat) {
-
-                // 🔹 Transformer les photos
-                $achat->photos->transform(function ($photo) {
-                    $cleanPath = str_replace('storage/', '', $photo->path);
-                    $photo->path = url('storage/' . $cleanPath);
-                    return $photo;
-                });
 
                 // 🔹 Transformer le bon de commande
                 if ($achat->bon_commande) {
-                    $cleanBC = str_replace('storage/', '', $achat->bon_commande);
-                    $achat->bon_commande = url('storage/' . $cleanBC);
+                    // Si le chemin commence déjà par 'http', on ne touche pas
+                    if (!str_starts_with($achat->bon_commande, 'http')) {
+                        // Si le chemin commence par 'storage/', on garde tel quel
+                        if (str_starts_with($achat->bon_commande, 'storage/')) {
+                            $achat->bon_commande = url($achat->bon_commande);
+                        } else {
+                            // Sinon on ajoute 'storage/' avant
+                            $achat->bon_commande = url('storage/' . $achat->bon_commande);
+                        }
+                    }
                 }
 
-                // 🔹 Transformer les bons de réception dans les items
+                // 🔹 Transformer les photos de chaque item
                 $achat->items->transform(function ($item) {
-                    if ($item->bon_reception) {
-                        $cleanBR = str_replace('storage/', '', $item->bon_reception);
-                        $item->bon_reception = url('storage/' . $cleanBR);
+                    // Transformer les photos de l'item
+                    if ($item->photos) {
+                        $item->photos->transform(function ($photo) {
+                            // Si le chemin commence déjà par 'http', on ne touche pas
+                            if (!str_starts_with($photo->path, 'http')) {
+                                // Si le chemin commence par 'storage/', on garde tel quel
+                                if (str_starts_with($photo->path, 'storage/')) {
+                                    $photo->path = url($photo->path);
+                                } else {
+                                    // Sinon on ajoute 'storage/' avant
+                                    $photo->path = url('storage/' . $photo->path);
+                                }
+                            }
+                            return $photo;
+                        });
                     }
+
+                    // Transformer le bon de réception
+                    if ($item->bon_reception) {
+                        if (!str_starts_with($item->bon_reception, 'http')) {
+                            if (str_starts_with($item->bon_reception, 'storage/')) {
+                                $item->bon_reception = url($item->bon_reception);
+                            } else {
+                                $item->bon_reception = url('storage/' . $item->bon_reception);
+                            }
+                        }
+                    }
+
                     return $item;
                 });
 

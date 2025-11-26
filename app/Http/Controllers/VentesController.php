@@ -224,10 +224,10 @@ class VentesController extends Controller
                 ], 403);
             }
 
-            // Base de la requête
+            // ✅ Relations simplifiées et optimisées
             $query = Ventes::with([
                 'creePar:id,fullname,email,role',
-                'items.stock.achat:id,nom_service',
+                'items.stock.achat.items', // Charger tous les items de l'achat
                 'commissionnaire:id,fullname,taux_commission',
                 'paiements:id,payable_id,montant_verse,date_paiement'
             ])->select(
@@ -253,7 +253,7 @@ class VentesController extends Controller
             // Récupération des ventes
             $ventes = $query->orderBy('created_at', 'desc')->get();
 
-            // Transformation pour le frontend
+            // ✅ Transformation simplifiée avec l'attribut helper
             $ventesFormatees = $ventes->map(function ($vente) {
                 return [
                     'id' => $vente->id,
@@ -269,12 +269,12 @@ class VentesController extends Controller
                     'statut' => $vente->statut,
                     'created_at' => $vente->created_at?->format('d/m/Y H:i'),
 
-                    // Détails des articles
+                    // ✅ Utiliser l'attribut helper nom_produit
                     'items' => $vente->items->map(function ($item) {
                         return [
                             'id' => $item->id,
                             'stock_id' => $item->stock_id,
-                            'nom_produit' => $item->stock->achat->nom_service ?? 'Article',
+                            'nom_produit' => $item->stock->nom_produit ?? 'Article', // ✅ Utilise l'attribut
                             'code_produit' => $item->stock->code_produit ?? 'N/A',
                             'quantite' => $item->quantite,
                             'prix_unitaire' => $item->prix_unitaire,
@@ -311,7 +311,6 @@ class VentesController extends Controller
                 ];
             });
 
-            // ✅ Réponse JSON
             return response()->json([
                 'success' => true,
                 'data' => $ventesFormatees,
@@ -320,14 +319,19 @@ class VentesController extends Controller
                     : "Vos ventes ont été récupérées avec succès"
             ], 200);
         } catch (\Exception $e) {
+            \Log::error('❌ Erreur showVentes:', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => "Une erreur est survenue lors de la récupération des ventes",
-                'errors' => $e->getMessage()
+                'errors' => config('app.debug') ? $e->getMessage() : 'Erreur serveur'
             ], 500);
         }
     }
-
 
     public function historiquePaiement($id): JsonResponse
     {
@@ -506,10 +510,10 @@ class VentesController extends Controller
             }
 
             $vente = Ventes::findOrFail($id);
-            if($vente->estSoldee()){
+            if ($vente->estSoldee()) {
                 return response()->json([
-                    'success'=> false,
-                    'message'=> "Impossible d'annuler une vente déja soldée"
+                    'success' => false,
+                    'message' => "Impossible d'annuler une vente déja soldée"
                 ], 400);
             }
             if ($vente->annuler()) {
