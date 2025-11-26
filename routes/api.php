@@ -114,15 +114,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/ventes/{id}/paiement', [FacturesController::class, 'ajouterPaiement']);
         // ✅ Forcer la génération d'une facture (vente soldée uniquement)
         Route::get('/ventes/{id}/facture', [FacturesController::class, 'genererFacture']);
-        
+
         Route::get('/achat/{id}/pdf', [FacturesController::class, 'generateFacturePDFFromAchat']);
         // Consultation
         Route::get('/', [FacturesController::class, 'index']);
     });
-
+    
     Route::prefix('commissions')->group(function () {
-        Route::post('/{id}', [CommissionController::class, 'PayeCommission']);
-        Route::get('/', [CommissionController::class, 'showCommission']);
+        Route::get('/groupees', [CommissionController::class, 'getCommissionsParCommissionnaire']);
+        Route::post('/payegroupees', [CommissionController::class, 'payerCommissionsGroupees']);
         Route::get('/mesCommissions', [CommissionController::class, 'mesCommissions']);
+        Route::get('/', [CommissionController::class, 'showCommission']);
+        Route::post('/{id}', [CommissionController::class, 'PayeCommission']);
     });
+
 });

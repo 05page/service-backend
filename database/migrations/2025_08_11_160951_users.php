@@ -22,7 +22,7 @@ return new class extends Migration
             $table->enum('role', ['admin', 'employe', 'intermediaire'])->default('admin');
 
             // Authentification
-            $table->string('password'); // optionnel si tu veux gérer un mot de passe aussi
+            $table->string('password')->nullable(); // optionnel si tu veux gérer un mot de passe aussi
             $table->string('activation_code')->nullable(); // code temporaire envoyé par mail
             $table->timestamp('activated_at')->nullable();
 

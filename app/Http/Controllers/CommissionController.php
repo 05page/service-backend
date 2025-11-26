@@ -17,16 +17,11 @@ use Illuminate\Support\Facades\Mail;
 class CommissionController extends Controller
 {
     /**
-     * Payer une commission
-     *
-     * @param Request $request
-     * @param int $commissionId
-     * @return JsonResponse
+     * Payer une commission individuelle
      */
     public function PayeCommission(Request $request, $commissionId): JsonResponse
     {
         try {
-            // Vérification des permissions
             if (Auth::user()->role !== User::ROLE_ADMIN) {
                 return response()->json([
                     'success' => false,
@@ -34,17 +29,14 @@ class CommissionController extends Controller
                 ], 403);
             }
 
-            // Récupération de la commission
             $commission = Commission::with('user')->findOrFail($commissionId);
-            
-            // Validation
+
             $validated = $request->validate([
                 'montant_verse' => 'required|numeric|min:1|max:' . $commission->commission_due
             ]);
 
             DB::beginTransaction();
 
-            // Création du paiement
             $paiement = Paiement::create([
                 'payable_id'   => $commission->id,
                 'payable_type' => Commission::class,
@@ -52,17 +44,14 @@ class CommissionController extends Controller
                 'created_by'   => Auth::id(),
             ]);
 
-            // Mise à jour de la commission
             $commission->update([
                 'etat_commission' => true
             ]);
 
-            // Rechargement des relations
             $commission->load('paiements', 'user');
 
             DB::commit();
 
-            // Envoi de l'email
             if ($commission->user && $commission->user->email) {
                 $this->sendCommissionEmail($commission);
             } else {
@@ -77,7 +66,6 @@ class CommissionController extends Controller
                     'paiement' => $paiement
                 ],
             ], 200);
-            
         } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollBack();
             return response()->json([
@@ -85,13 +73,11 @@ class CommissionController extends Controller
                 'message' => 'Erreur de validation',
                 'errors' => $e->errors()
             ], 422);
-            
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Commission introuvable'
             ], 404);
-            
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Erreur paiement commission : ' . $e->getMessage());
@@ -105,19 +91,205 @@ class CommissionController extends Controller
     }
 
     /**
-     * Envoyer l'email de notification de commission
-     *
-     * @param Commission $commission
-     * @return void
+     * ✅ NOUVEAU : Payer plusieurs commissions groupées
+     */
+    public function payerCommissionsGroupees(Request $request): JsonResponse
+    {
+        try {
+            if (Auth::user()->role !== User::ROLE_ADMIN) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès refusé. Seuls les admins peuvent utiliser cette fonctionnalité'
+                ], 403);
+            }
+
+            $validated = $request->validate([
+                'commission_ids' => 'required|array|min:1',
+                'commission_ids.*' => 'required|exists:commissions,id',
+            ]);
+
+            DB::beginTransaction();
+
+            // Récupérer toutes les commissions
+            $commissions = Commission::with('user')
+                ->whereIn('id', $validated['commission_ids'])
+                ->where('etat_commission', 0) // Seulement les non payées
+                ->get();
+
+            if ($commissions->isEmpty()) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune commission en attente trouvée parmi les IDs fournis'
+                ], 404);
+            }
+
+            // Vérifier que toutes les commissions appartiennent au même utilisateur
+            $userIds = $commissions->pluck('user_id')->unique();
+            if ($userIds->count() > 1) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Les commissions doivent appartenir au même commissionnaire'
+                ], 400);
+            }
+
+            $totalMontant = 0;
+            $paiements = [];
+
+            // Créer un paiement pour chaque commission
+            foreach ($commissions as $commission) {
+                $paiement = Paiement::create([
+                    'payable_id'   => $commission->id,
+                    'payable_type' => Commission::class,
+                    'montant_verse' => $commission->commission_due,
+                    'created_by'   => Auth::id(),
+                ]);
+
+                $commission->update([
+                    'etat_commission' => true
+                ]);
+
+                $totalMontant += $commission->commission_due;
+                $paiements[] = $paiement;
+            }
+
+            DB::commit();
+
+            // Envoyer un email récapitulatif
+            $user = $commissions->first()->user;
+            if ($user && $user->email) {
+                $this->sendCommissionGroupeeEmail($user, $commissions, $totalMontant);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "Paiement groupé effectué avec succès pour {$commissions->count()} commission(s)",
+                'data' => [
+                    'total_paye' => $totalMontant,
+                    'nombre_commissions' => $commissions->count(),
+                    'commissionnaire' => [
+                        'id' => $user->id,
+                        'fullname' => $user->fullname,
+                        'email' => $user->email
+                    ],
+                    'commissions' => $commissions->map(function ($c) {
+                        return [
+                            'id' => $c->id,
+                            'vente_reference' => $c->vente->reference ?? null,
+                            'montant' => $c->commission_due
+                        ];
+                    })
+                ],
+            ], 200);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Erreur paiement groupé commissions : ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du règlement groupé',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * ✅ NOUVEAU : Obtenir les commissions groupées par commissionnaire
+     */
+    public function getCommissionsParCommissionnaire(): JsonResponse
+    {
+        try {
+            if (Auth::user()->role !== User::ROLE_ADMIN) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès refusé'
+                ], 403);
+            }
+
+            // Grouper les commissions non payées par commissionnaire
+            $commissionsGroupees = Commission::with([
+                'user:id,fullname,taux_commission,email',
+                'vente:id,reference,prix_total'
+            ])
+                ->where('etat_commission', 0)
+                ->get()
+                ->groupBy('user_id')
+                ->map(function ($commissions, $userId) {
+                    $user = $commissions->first()->user;
+                    return [
+                        'commissionnaire' => [
+                            'id' => $user->id,
+                            'fullname' => $user->fullname,
+                            'email' => $user->email,
+                            'taux_commission' => $user->taux_commission
+                        ],
+                        'nombre_commissions' => $commissions->count(),
+                        'total_du' => $commissions->sum('commission_due'),
+                        'commissions' => $commissions->map(function ($c) {
+                            return [
+                                'id' => $c->id,
+                                'vente_id' => $c->ventes_id,
+                                'vente_reference' => $c->vente->reference ?? null,
+                                'montant' => $c->commission_due,
+                                'created_at' => $c->created_at->format('d/m/Y H:i')
+                            ];
+                        })
+                    ];
+                })
+                ->values();
+
+            return response()->json([
+                'success' => true,
+                'data' => $commissionsGroupees,
+                'message' => 'Commissions groupées récupérées avec succès'
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Erreur récupération commissions groupées : ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Envoyer l'email pour une commission individuelle
      */
     private function sendCommissionEmail(Commission $commission): void
     {
         try {
             Mail::to($commission->user->email)->send(new CommissionPayeeMail($commission));
-
             Log::info("Email de commission envoyé avec succès à {$commission->user->email}");
         } catch (\Exception $e) {
             Log::error("Erreur lors de l'envoi de l'email de commission à {$commission->user->email}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * ✅ NOUVEAU : Envoyer l'email pour paiement groupé
+     */
+
+    private function sendCommissionGroupeeEmail($user, $commissions, $totalMontant): void
+    {
+        try {
+            // ✅ Réutilisation du même Mailable avec les commissions groupées
+            Mail::to($user->email)->send(new CommissionPayeeMail($commissions, $totalMontant));
+
+            Log::info("Email de commission groupée envoyé avec succès à {$user->email}", [
+                'nombre_commissions' => $commissions->count(),
+                'total_montant' => $totalMontant
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Erreur lors de l'envoi de l'email groupé à {$user->email}: " . $e->getMessage());
         }
     }
 
@@ -131,7 +303,6 @@ class CommissionController extends Controller
                 ], 403);
             }
 
-            // Récupérer toutes les commissions avec leurs relations
             $commissions = Commission::with([
                 'user:id,fullname,taux_commission,email',
                 'vente:id,reference,prix_total'
@@ -140,21 +311,18 @@ class CommissionController extends Controller
                 ->orderBy('created_at', 'desc')
                 ->get();
 
-            // ✅ IMPORTANT : Vérifier que $commissions n'est pas vide
             Log::info('Commissions récupérées:', ['count' => $commissions->count()]);
 
-            // Calculs statistiques
             $totalCommission = Commission::sum('commission_due');
             $commissionPayee = Commission::where('etat_commission', 1)->sum('commission_due');
             $commissionEnAttente = Commission::where('etat_commission', 0)->sum('commission_due');
 
-            // Nombre de commissions par statut
             $nombreCommissionsPayees = Commission::where('etat_commission', 1)->count();
             $nombreCommissionsEnAttente = Commission::where('etat_commission', 0)->count();
 
             return response()->json([
                 'success' => true,
-                'data' => $commissions, // ✅ Les commissions sont ici
+                'data' => $commissions,
                 'resume' => [
                     'total_commission' => (float) $totalCommission,
                     'commission_payee' => (float) $commissionPayee,
@@ -176,12 +344,12 @@ class CommissionController extends Controller
             ], 500);
         }
     }
+
     public function mesCommissions(): JsonResponse
     {
         try {
             $user = Auth::user();
 
-            // Vérifier que l'utilisateur est bien un employé (pas un admin)
             if ($user->role === User::ROLE_ADMIN) {
                 return response()->json([
                     'success' => false,
@@ -189,7 +357,6 @@ class CommissionController extends Controller
                 ], 403);
             }
 
-            // Charger les commissions du user connecté avec les infos de la vente liée
             $commissions = Commission::with([
                 'vente:id,reference,nom_client,prix_total,created_at'
             ])
@@ -197,12 +364,10 @@ class CommissionController extends Controller
                 ->select('id', 'ventes_id', 'commission_due', 'etat_commission', 'created_at')
                 ->get();
 
-            // Calcul des totaux
             $totalCommission = Commission::where('user_id', $user->id)->sum('commission_due');
             $commissionPayee = Commission::payees()->where('user_id', $user->id)->sum('commission_due');
             $commissionEnAttente = Commission::attente()->where('user_id', $user->id)->sum('commission_due');
 
-            // Structure de réponse
             return response()->json([
                 'success' => true,
                 'resume' => [
