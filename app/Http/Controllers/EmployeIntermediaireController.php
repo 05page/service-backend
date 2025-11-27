@@ -50,7 +50,7 @@ class EmployeIntermediaireController extends Controller
             DB::beginTransaction();
 
             if ($validateUser['role'] === User::ROLE_INTERMEDIAIRE) {
-                // Cas INTERMÉDIAIRE
+                // ✅ CAS INTERMÉDIAIRE : Pas d'email d'activation
                 $employeIntermediaire = User::create([
                     'fullname' => $validateUser['fullname'],
                     'email' => $validateUser['email'],
@@ -61,36 +61,48 @@ class EmployeIntermediaireController extends Controller
                     'activation_code' => null,
                     'email_verified_at' => now(),
                     'active' => true,
-                    'password' => $validateUser['password'] ?? null,
+                    'password' => null,
                     'created_by' => Auth::id(),
                 ]);
+
+                DB::commit();
+
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'employe_intermediaire' => $employeIntermediaire->load('createdBy'),
+                    ],
+                    'message' => 'Intermédiaire ajouté avec succès.'
+                ], 201);
             } else {
-                // Créer l'employé/intermédiaire
+                // ✅ CAS EMPLOYÉ : Envoyer l'email d'activation
                 $employeIntermediaire = User::create([
                     'fullname' => $validateUser['fullname'],
                     'email' => $validateUser['email'],
                     'telephone' => $validateUser['telephone'],
                     'adresse' => $validateUser['adresse'],
                     'role' => User::ROLE_EMPLOYE,
-                    'taux_commission' => $validateUser['taux_commission'],
-                    'active' => false,
-                    'password' => $validateUser['password'] ?? null,
+                    'taux_commission' => $validateUser['taux_commission'] ?? 0,
+                    'active' => false, // ✅ Inactif jusqu'à activation
+                    'password' => null,
                     'created_by' => Auth::id(),
+                    // ✅ Le code d'activation sera généré automatiquement par le modèle User (boot)
                 ]);
-            }
 
-            DB::commit();
-            $message = $validateUser['role'] === User::ROLE_INTERMEDIAIRE
-                ? 'Intermédiaire ajouté avec succès.'
-                : 'Employé ajouté avec succès. Un email d’activation a lui a été envoyé.';
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'employe_intermediaire' => $employeIntermediaire->load('createdBy'),
-                    //'code_activation' => $employeIntermediaire->code_activation, // Pour les tests
-                ],
-                'message' => $message
-            ], 201);
+                // ✅ ENVOYER L'EMAIL D'ACTIVATION
+                $this->sendActivationEmail($employeIntermediaire);
+
+                DB::commit();
+
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'employe_intermediaire' => $employeIntermediaire->load('createdBy'),
+                        'code_activation' => $employeIntermediaire->activation_code, // Pour les tests
+                    ],
+                    'message' => 'Employé ajouté avec succès. Un email d\'activation lui a été envoyé.'
+                ], 201);
+            }
         } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollBack();
             return response()->json([
@@ -100,6 +112,8 @@ class EmployeIntermediaireController extends Controller
             ], 422);
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Erreur création employé: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur survenue lors de la création',
