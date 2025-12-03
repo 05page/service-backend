@@ -104,19 +104,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/achatsDisponibles', [AchatsController::class, 'achatsDisponibles']);
         Route::get('{id}', [AchatsController::class, 'selectAchat']);
         Route::put('{id}', [AchatsController::class, 'updateAchat']);       // Modifier (edit_suppliers)
-        Route::put('/{id}/annuler', [AchatsController::class, 'marqueAnnule']);       // Modifier (edit_suppliers)
+        Route::put('/annuler/{id}', [AchatsController::class, 'marqueAnnule']);       // Modifier (edit_suppliers)
         Route::delete('{id}', [AchatsController::class, 'deleteAchat']);   // Supprimer (delete_suppliers)
     });
 
     Route::prefix('factures')->group(function () {
         Route::get('/vente/{id}/document', [FacturesController::class, 'genererDocumentVente']);
-        // ✅ Ajouter un paiement et générer un reçu automatiquement
         Route::post('/ventes/{id}/paiement', [FacturesController::class, 'ajouterPaiement']);
-        // ✅ Forcer la génération d'une facture (vente soldée uniquement)
         Route::get('/ventes/{id}/facture', [FacturesController::class, 'genererFacture']);
 
         Route::get('/achat/{id}/pdf', [FacturesController::class, 'generateFacturePDFFromAchat']);
-        // Consultation
+        Route::get('/bonReception/{id}/pdf', [FacturesController::class, 'genererFactureDepuisBonReception']);
         Route::get('/', [FacturesController::class, 'index']);
     });
     

@@ -40,50 +40,45 @@ class Achats extends Model
     {
         return $this->belongsTo(Fournisseurs::class, 'fournisseur_id');
     }
+    
     public function items(): HasMany
     {
         return $this->hasMany(AchatItems::class, 'achat_id');
     }
 
-    /**
-     * Cette relation retourne le PREMIER stock lié via l'historique
-     */
     public function stock()
     {
         return $this->hasOneThrough(
             Stock::class,
             StockHistorique::class,
-            'achat_id', // Foreign key sur stock_historiques
-            'id', // Foreign key sur stock
-            'id', // Local key sur achats
-            'stock_id' // Local key sur stock_historiques
-        )->oldest(); // Prendre le premier stock lié
+            'achat_id',
+            'id',
+            'id',
+            'stock_id'
+        )->oldest('stock_historiques.created_at'); // ✅ Spécifier la table
     }
 
-    /**
-     * ✅ NOUVEAU : Relation pour obtenir tous les historiques de stock
-     */
     public function stockHistoriques(): HasMany
     {
-        return $this->hasMany(StockHistorique::class, 'achat_id');  // ✅ Utiliser 'achats_id'
+        return $this->hasMany(StockHistorique::class, 'achat_id');
     }
 
     /**
-     * ✅ NOUVEAU : Vérifier si cet achat est déjà utilisé dans un stock
+     * ✅ MÉTHODE CORRIGÉE : Vérifier si cet achat est déjà utilisé dans un stock
      */
     public function estUtiliseDansStock(): bool
     {
-        return $this->stock()->exists();
+        // Vérifie directement dans la table stocks
+        return Stock::where('achat_id', $this->id)->exists();
     }
 
     /**
-     * ✅ NOUVEAU : Obtenir tous les stocks liés à cet achat
+     * ✅ MÉTHODE CORRIGÉE : Obtenir tous les stocks liés à cet achat
      */
     public function getTousLesStocks()
     {
-        return Stock::whereHas('historiques', function ($query) {
-            $query->where('achat_id', $this->id);  // ✅ Utiliser 'achats_id'
-        })->get();
+        // Méthode simple et directe
+        return Stock::where('achat_id', $this->id)->get();
     }
 
     public function photos(): HasMany
@@ -150,57 +145,8 @@ class Achats extends Model
     }
 
     /**
-     * Marquer comme annulé et retirer le stock associé
+     * ✅ MÉTHODE AMÉLIORÉE : Mise à jour du statut en fonction des items
      */
-    public function marqueAnnule(): bool
-    {
-        if ($this->isAnnule()) {
-            return false;
-        }
-
-        return DB::transaction(function () {
-            // ✅ Vérifier si cet achat est utilisé dans un stock
-            if ($this->estUtiliseDansStock()) {
-                $stocksLies = $this->getTousLesStocks();
-
-                foreach ($stocksLies as $stock) {
-                    // Récupérer la quantité totale ajoutée par cet achat
-                    $quantiteTotale = $stock->historiques()
-                        ->where('achat_id', $this->id)
-                        ->whereIn('type', ['creation', 'renouvellement', 'entree'])
-                        ->sum('quantite');
-
-                    if ($quantiteTotale > 0 && $stock->quantite >= $quantiteTotale) {
-                        $quantiteAvant = $stock->quantite;
-
-                        // Retirer la quantité du stock
-                        $stock->quantite -= $quantiteTotale;
-                        $stock->entre_stock -= $quantiteTotale;
-                        $stock->updateStatut();
-                        $stock->save();
-
-                        // ✅ Créer une entrée d'historique
-                        $stock->historiques()->create([
-                            'achat_id' => null,
-                            'type' => 'sortie',
-                            'quantite' => $quantiteTotale,
-                            'quantite_avant' => $quantiteAvant,
-                            'quantite_apres' => $stock->quantite,
-                            'commentaire' => "Retrait suite à l'annulation de l'achat {$this->numero_achat}",
-                            'created_by' => auth()->id() ?? $this->created_by
-                        ]);
-                    }
-                }
-            }
-
-            // Marquer l'achat comme annulé
-            $this->statut = self::ACHAT_ANNULE;
-            $this->active = false;
-
-            return $this->save();
-        });
-    }
-
     public function updateStatutGlobal(): void
     {
         $totalItems = $this->items()->count();
@@ -211,6 +157,7 @@ class Achats extends Model
             return;
         }
 
+        // Compter les items par statut
         $itemsRecus = $this->items()
             ->where('statut_item', AchatItems::STATUT_RECU)
             ->count();
@@ -219,19 +166,67 @@ class Achats extends Model
             ->where('statut_item', AchatItems::STATUT_PARTIEL)
             ->count();
 
-        // Logique de statut global
-        if ($itemsRecus === $totalItems) {
-            // Tous les items sont complètement reçus
+        $itemsAnnules = $this->items()
+            ->where('statut_item', AchatItems::STATUT_ANNULE)
+            ->count();
+
+        $itemsEnAttente = $this->items()
+            ->where('statut_item', AchatItems::STATUT_EN_ATTENTE)
+            ->count();
+
+        // ✅ LOGIQUE DE STATUT AMÉLIORÉE
+        
+        // Cas 1 : Tous les items sont annulés
+        if ($itemsAnnules === $totalItems) {
+            $this->statut = self::ACHAT_ANNULE;
+            $this->active = false;
+        }
+        // Cas 2 : Tous les items NON annulés sont reçus
+        elseif ($itemsRecus === ($totalItems - $itemsAnnules) && ($totalItems - $itemsAnnules) > 0) {
             $this->statut = self::ACHAT_REÇU;
-        } elseif ($itemsRecus > 0 || $itemsPartiels > 0) {
-            // Au moins un item est partiellement ou totalement reçu
+        }
+        // Cas 3 : Au moins un item est reçu ou partiel (et pas tous annulés)
+        elseif (($itemsRecus > 0 || $itemsPartiels > 0) && $itemsAnnules < $totalItems) {
             $this->statut = self::ACHAT_PARTIEL;
-        } else {
-            // Aucun item reçu
+        }
+        // Cas 4 : Que des items en attente (ou mélange attente + annulés)
+        else {
             $this->statut = self::ACHAT_COMMANDE;
         }
 
         $this->save();
+    }
+
+    /**
+     * ✅ MÉTHODE CORRIGÉE : Annuler l'achat (seulement si en commande)
+     */
+    public function marqueAnnule(): bool
+    {
+        if ($this->isAnnule()) {
+            return false;
+        }
+
+        // ✅ VÉRIFICATION : On ne peut annuler QUE les achats en commande
+        if (!$this->isCommande()) {
+            Log::error("Impossible d'annuler l'achat #{$this->id} - Statut actuel : {$this->statut}");
+            throw new \Exception("Impossible d'annuler cet achat. Seuls les achats en commande peuvent être annulés.");
+        }
+
+        return DB::transaction(function () {
+            // ✅ Annuler tous les items en attente
+            $itemsEnAttente = $this->items()
+                ->where('statut_item', AchatItems::STATUT_EN_ATTENTE)
+                ->get();
+
+            foreach ($itemsEnAttente as $item) {
+                $item->marquerAnnule();
+            }
+
+            // ✅ Le statut sera mis à jour automatiquement par updateStatutGlobal()
+            $this->updateStatutGlobal();
+
+            return true;
+        });
     }
 
     protected static function boot()

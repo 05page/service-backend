@@ -239,16 +239,16 @@ class AchatsController extends Controller
     public function addBonReception(Request $request, $id): JsonResponse
     {
         try {
-            // ✅ LOG POUR DEBUG : Voir ce qui arrive
             Log::info("=== DÉBUT addBonReception ===");
             Log::info("Request data:", $request->all());
-            Log::info("Files:", $request->allFiles());
 
-            // ✅ CORRECTION : Validation adaptée au FormData
+            // ✅ Validation : Les items sont optionnels, mais s'ils sont fournis, ils doivent être complets
             $validated = $request->validate([
+                'items' => 'required|array|min:1', // Au moins 1 item doit être envoyé
                 'items.*.id' => 'required|exists:achat_items,id',
-                'items.*.bon_reception' => 'nullable|file|mimes:pdf|max:5120', // 5MB max
-                'items.*.quantite_recu' => 'required|integer|min:0',
+                'items.*.quantite_recu' => 'required|integer|min:1', // ✅ min:1 pour éviter les 0
+                'items.*.numero_bon_reception' => 'required|string|max:25',
+                'items.*.date_reception' => 'required|date',
             ]);
 
             DB::beginTransaction();
@@ -263,59 +263,49 @@ class AchatsController extends Controller
                 ], 400);
             }
 
-            // ✅ VÉRIFICATION : Si items existe bien
-            if (!isset($validated['items']) || empty($validated['items'])) {
-                DB::rollBack();
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Aucun item fourni',
-                    'debug' => [
-                        'validated' => $validated,
-                        'request_all' => $request->all()
-                    ]
-                ], 422);
-            }
-
+            // ✅ Parcourir UNIQUEMENT les items envoyés dans la requête
             foreach ($validated['items'] as $index => $itemData) {
                 Log::info("Traitement item index {$index}:", $itemData);
 
                 $item = AchatItems::findOrFail($itemData['id']);
 
+                // Vérifier que l'item appartient bien à cet achat
                 if ($item->achat_id !== $achat->id) {
                     DB::rollBack();
                     return response()->json([
                         'success' => false,
-                        'message' => "L'item {$item->id} n'appartient pas à cet achat"
+                        'message' => "L'article {$item->id} n'appartient pas à cet achat"
+                    ], 400);
+                }
+
+                // Vérifier que l'item n'est pas déjà reçu
+                if ($item->isRecu()) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => "L'article '{$item->nom_service}' a déjà été reçu"
                     ], 400);
                 }
 
                 $quantiteRecueTotale = $itemData['quantite_recu'];
+
+                // Vérifier la quantité
                 if ($quantiteRecueTotale > $item->quantite) {
                     DB::rollBack();
                     return response()->json([
                         'success' => false,
-                        'message' => "La quantité reçue ({$quantiteRecueTotale}) dépasse la quantité commandée ({$item->quantite}) pour l'item '{$item->nom_service}'"
+                        'message' => "La quantité reçue ({$quantiteRecueTotale}) dépasse la quantité commandée ({$item->quantite}) pour l'article '{$item->nom_service}'"
                     ], 422);
-                }
-
-                // ✅ Gérer le fichier PDF
-                $bonReceptionPath = null;
-                if ($request->hasFile("items.{$index}.bon_reception")) {
-                    $file = $request->file("items.{$index}.bon_reception");
-                    $fileName = "bon_reception_item_{$item->id}_" . time() . '_' . uniqid() . '.pdf';
-                    $path = $file->storeAs("bon_receptions", $fileName, 'public');
-                    $bonReceptionPath = "storage/" . $path;
-
-                    Log::info("Fichier uploadé : {$bonReceptionPath}");
                 }
 
                 // ✅ Mettre à jour l'item
                 $item->quantite_recu = $quantiteRecueTotale;
-                $item->bon_reception = $bonReceptionPath;
                 $item->date_livraison = now();
+                $item->numero_bon_reception = $itemData['numero_bon_reception'];
+                $item->date_reception = $itemData['date_reception'];
                 $item->prix_reel = $quantiteRecueTotale * $item->prix_unitaire;
 
-                // ✅ marquerRecu() sauvegarde ET déclenche l'événement "updated"
+                // ✅ Marquer comme reçu
                 $item->marquerRecu();
 
                 Log::info("✅ Item #{$item->id} traité - Statut: {$item->statut_item}");
@@ -330,7 +320,7 @@ class AchatsController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Bon de réception ajouté avec succès',
+                'message' => "Bon de réception ajouté avec succès pour " . count($validated['items']) . " article(s)",
                 'data' => $achat->load(['items', 'fournisseur'])
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -349,7 +339,6 @@ class AchatsController extends Controller
             Log::error("Message : " . $e->getMessage());
             Log::error("Ligne : " . $e->getLine());
             Log::error("Fichier : " . $e->getFile());
-            Log::error("Stack trace : " . $e->getTraceAsString());
 
             return response()->json([
                 'success' => false,
@@ -375,7 +364,7 @@ class AchatsController extends Controller
             $query = Achats::with([
                 'creePar:id,fullname,email,role',
                 'fournisseur:id,nom_fournisseurs',
-                'items:id,achat_id,nom_service,quantite,quantite_recu,prix_unitaire,prix_total,prix_reel,date_commande,statut_item,bon_reception,date_livraison',
+                'items:id,achat_id,nom_service,quantite,quantite_recu,prix_unitaire,prix_total,prix_reel,date_commande,statut_item,numero_bon_reception,date_reception,date_livraison',
                 'items.photos:id,achat_item_id,path'
             ])->select(
                 'id',
@@ -620,7 +609,6 @@ class AchatsController extends Controller
         }
     }
 
-
     public function marqueAnnule($id): JsonResponse
     {
         try {
@@ -631,66 +619,81 @@ class AchatsController extends Controller
                 ], 403);
             }
 
-            $annule = Achats::findOrFail($id);
+            // ✅ Vérifier si l'item existe avant findOrFail
+            $item = AchatItems::find($id);
 
-            if ($annule->isPaye() || $annule->isReçu()) {
+            if (!$item) {
+                Log::warning("achat introuvable : ID {$id}");
+
+                // Donner plus d'infos pour le debug
+                $itemsExistants = AchatItems::pluck('id')->toArray();
+
                 return response()->json([
                     'success' => false,
-                    'message' => "Impossible d'annuler un achat déjà reçu/payé"
+                    'message' => "article #{$id} introuvable",
+                    'debug' => [
+                        'item_recherche' => $id,
+                        'items_existants' => $itemsExistants,
+                        'total_items' => count($itemsExistants)
+                    ]
+                ], 404);
+            }
+
+            // Charger la relation achat
+            $item->load('achat');
+
+            // Vérifier si l'item est déjà annulé
+            if ($item->isAnnule()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Cet article est déjà annulé"
                 ], 400);
             }
 
-            $annule->marqueAnnule();
+            // ✅ Vérifier si l'item est en attente (condition obligatoire)
+            if (!$item->isEnAttente()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Impossible d'annuler cet article. Seuls les articles en attente peuvent être annulés.",
+                    'data' => [
+                        'statut_actuel' => $item->statut_item,
+                        'quantite_commandee' => $item->quantite,
+                        'quantite_recue' => $item->quantite_recu
+                    ]
+                ], 400);
+            }
+
+            // Annuler l'item
+            $item->marquerAnnule();
 
             return response()->json([
                 'success' => true,
-                'message' => "Achat annulé avec succès",
-                'data' => $annule
+                'message' => "Article annulé avec succès",
+                'data' => [
+                    'item' => $item->fresh(),
+                    'achat_statut' => $item->achat->statut
+                ]
             ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Une erreur est survenue',
-                'errors' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function deleteAchat($id): JsonResponse
-    {
-        try {
-            // Vérification des permissions ADMIN seulement
-            if (!$this->verifierPermission()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Accès réfusé.Seul un employé ayant une permission peut effectuer cette tache",
-                ], 403);
-            }
-
-            DB::beginTransaction();
-            $deleteAchat = Achats::findOrFail($id);
-
-            $deleteAchat->stocks()->delete();
-            if ($deleteAchat->stocks()->exists()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Impossible de supprimer cet achat car il est utilisé dans le stock.'
-                ], 400);
-            }
-
-            $deleteAchat->delete();
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Achat supprimée avec succès'
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::error('Article introuvable:', [
+                'item_id' => $id,
+                'message' => $e->getMessage()
             ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
+
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la suppression de l\'achat',
-                'error' => $e->getMessage()
+                'message' => "Article #{$id} introuvable dans la base de données"
+            ], 404);
+        } catch (\Exception $e) {
+            Log::error('Erreur annulation item:', [
+                'item_id' => $id,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
             ], 500);
         }
     }

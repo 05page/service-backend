@@ -323,7 +323,7 @@ class StockController extends Controller
             $query = Stock::with([
                 'creePar:id,fullname,email,role',
                 'achat:id',
-                'achat.items:achat_id,nom_service,quantite,quantite_recu,prix_unitaire,prix_total,prix_reel,date_commande,statut_item,bon_reception,date_livraison',
+                'achat.items:achat_id,nom_service,quantite,quantite_recu,prix_unitaire,prix_total,prix_reel,date_commande,statut_item,numero_bon_reception,date_livraison',
                 'achat.photos'
             ])
             ->select(

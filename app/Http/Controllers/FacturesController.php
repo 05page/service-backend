@@ -89,11 +89,11 @@ class FacturesController extends Controller
         DB::beginTransaction();
 
         try {
-            // ✅ Vérifier si facture existe déjà
+            //Vérifier si facture existe déjà
             $factureExistante = Factures::where('vente_id', $vente->id)->first();
 
             if ($factureExistante) {
-                // ✅ Incrémenter le compteur de copies
+                //Incrémenter le compteur de copies
                 $factureExistante->increment('nombre_copies');
                 $nombreCopies = $factureExistante->nombre_copies;
 
@@ -101,7 +101,7 @@ class FacturesController extends Controller
                 return $this->telechargerFacture($factureExistante, $vente, $nombreCopies);
             }
 
-            // ✅ Créer la facture pour la première fois (ORIGINAL)
+            //Créer la facture pour la première fois (ORIGINAL)
             $facture = Factures::create([
                 'vente_id' => $vente->id,
                 'created_by' => Auth::id(),
@@ -280,11 +280,11 @@ class FacturesController extends Controller
                 ], 403);
             }
 
-            // ✅ CORRECTION : Charger aussi les items
+            //Chargement des items
             $achat = Achats::with([
                 'fournisseur:id,nom_fournisseurs,email,telephone,adresse',
                 'creePar:id,fullname,email',
-                'items' // ✅ Ajouter cette relation
+                'items'
             ])->findOrFail($achatId);
 
             // Vérifier que l'achat est reçu
@@ -306,7 +306,7 @@ class FacturesController extends Controller
 
                 DB::commit();
 
-                // ✅ CORRECTION : Enlever $items du paramètre
+                
                 $donneesFacture = $this->preparerDonneesFactureAchat($factureExistante, $achat, $nombreCopies);
 
                 return $this->telechargerFactureAchat($factureExistante, $donneesFacture, $nombreCopies);
@@ -340,7 +340,6 @@ class FacturesController extends Controller
         }
     }
 
-    // ✅ CORRECTION : Enlever le paramètre $items et utiliser $achat->items
     private function preparerDonneesFactureAchat(Factures $facture, Achats $achat, int $nombreCopies = 0): array
     {
         // Préparer les articles depuis les items de l'achat
@@ -397,9 +396,14 @@ class FacturesController extends Controller
         return $pdf->download($nomFichier);
     }
 
-    public function index(): JsonResponse
+    /**
+     * Génère une facture PDF basée sur un bon de réception
+     * @param int $achatItemId - ID de l'item d'achat (bon de réception)
+     */
+    public function genererFactureDepuisBonReception($achatItemId)
     {
         try {
+            // Vérification des permissions
             if (!$this->verifierPermissions()) {
                 return response()->json([
                     'success' => false,
@@ -407,22 +411,135 @@ class FacturesController extends Controller
                 ], 403);
             }
 
-            $factures = Factures::with([
-                'creePar:id,fullname,email',
-                'vente:id,reference,nom_client,prix_total',
-                'achat:id,numero_achat,nom_service,prix_total'
-            ])->orderBy('created_at', 'desc')->get();
+            // Récupérer l'item avec ses relations
+            $achatItem = AchatItems::with([
+                'achat.fournisseur:id,nom_fournisseurs,email,telephone,adresse',
+                'achat.creePar:id,fullname'
+            ])->findOrFail($achatItemId);
 
-            return response()->json([
-                'success' => true,
-                'data' => $factures
-            ], 200);
-        } catch (\Exception $e) {
+            // Vérifier que l'item a bien un bon de réception
+            if (empty($achatItem->numero_bon_reception) || empty($achatItem->date_reception)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet article ne possède pas de bon de réception valide.'
+                ], 422);
+            }
+
+            // Vérifier que l'item est reçu
+            if (!in_array($achatItem->statut_item, [AchatItems::STATUT_RECU, AchatItems::STATUT_PARTIEL])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de générer une facture pour un item non reçu.'
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            // Vérifier si une facture existe déjà pour cet item
+            // Note: Nous utilisons achat_id car la table factures n'a pas de colonne achat_item_id
+            // Vous pourriez vouloir ajouter cette colonne ou utiliser une autre logique
+            $factureExistante = Factures::where('achat_id', $achatItem->achat_id)->first();
+
+            if ($factureExistante) {
+                $factureExistante->increment('nombre_copies');
+                $nombreCopies = $factureExistante->nombre_copies;
+
+                DB::commit();
+
+                $donneesFacture = $this->preparerDonneesFactureBonReception($factureExistante, $achatItem, $nombreCopies);
+                return $this->telechargerFactureBonReception($factureExistante, $donneesFacture, $nombreCopies);
+            }
+
+            // Créer une nouvelle facture
+            $facture = Factures::create([
+                'achat_id' => $achatItem->achat_id,
+                'created_by' => Auth::id(),
+                'nombre_copies' => 0,
+            ]);
+
+            DB::commit();
+
+            $donneesFacture = $this->preparerDonneesFactureBonReception($facture, $achatItem, 0);
+            return $this->telechargerFactureBonReception($facture, $donneesFacture, 0);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des factures',
+                'message' => 'Bon de réception introuvable'
+            ], 404);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération de la facture',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
+
+    /**
+     * Prépare les données pour la facture du bon de réception
+     */
+    private function preparerDonneesFactureBonReception(Factures $facture, AchatItems $achatItem, int $nombreCopies = 0): array
+    {
+        // Préparer l'article
+        $article = [
+            'description' => $achatItem->nom_service,
+            'numero_bon_reception' => $achatItem->numero_bon_reception,
+            'date_reception' => $achatItem->date_reception ? $achatItem->date_reception->format('d/m/Y') : 'N/A',
+            'quantite' => $achatItem->quantite_recu,
+            'prix_unitaire' => $achatItem->prix_unitaire,
+            'total' => $achatItem->prix_unitaire * $achatItem->quantite_recu
+        ];
+
+        return [
+            'facture' => $facture,
+            'achatItem' => $achatItem,
+            'achat' => $achatItem->achat,
+            'type_document' => 'bon_reception',
+            'statut_copie' => $nombreCopies === 0 ? 'ORIGINAL' : "COPIE N°{$nombreCopies}",
+            'fournisseur' => [
+                'nom' => $achatItem->achat->fournisseur->nom_fournisseurs,
+                'email' => $achatItem->achat->fournisseur->email,
+                'telephone' => $achatItem->achat->fournisseur->telephone,
+                'adresse' => $achatItem->achat->fournisseur->adresse
+            ],
+            'articles' => [$article], // Tableau avec un seul article
+            'bon_reception' => [
+                'numero' => $achatItem->numero_bon_reception,
+                'date' => $achatItem->date_reception ? $achatItem->date_reception->format('d/m/Y') : 'N/A'
+            ],
+            'totaux' => [
+                'sous_total' => $article['total'],
+                'montant_total' => $article['total']
+            ],
+            'entreprise' => $this->getEntrepriseInfo(),
+            'date_generation' => now()->format('d/m/Y')
+        ];
+    }
+
+    /**
+     * Télécharge la facture du bon de réception en PDF
+     */
+    private function telechargerFactureBonReception(Factures $facture, array $donneesFacture, int $nombreCopies = 0)
+    {
+        $pdf = Pdf::loadView('factures.bon_reception_facture', $donneesFacture)
+            ->setPaper('A4', 'landscape')
+            ->setOptions([
+                'isHtml5ParserEnabled' => true,
+                'isPhpEnabled' => true,
+                'defaultFont' => 'Arial',
+                'margin-top' => 10,
+                'margin-bottom' => 10,
+                'margin-left' => 10,
+                'margin-right' => 10,
+            ]);
+
+        $nomFichier = $nombreCopies === 0
+            ? "FACTURE_BR_{$donneesFacture['bon_reception']['numero']}.pdf"
+            : "FACTURE_BR_{$donneesFacture['bon_reception']['numero']}_COPIE_{$nombreCopies}.pdf";
+
+        return $pdf->download($nomFichier);
+    }
+
 }

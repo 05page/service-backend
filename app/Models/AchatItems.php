@@ -26,7 +26,8 @@ class AchatItems extends Model
 
     protected $casts = [
         'date_commande' => 'date',
-        'date_livraison' => 'date'
+        'date_livraison' => 'date',
+        'date_reception' => 'date'
     ];
 
     const STATUT_EN_ATTENTE = 'en_attente';
